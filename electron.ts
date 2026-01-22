@@ -6,16 +6,18 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 require('dotenv').config();
 
-function getFalKey(): string {
+function getFalKey(): string | null {
   try {
     const configPath = path.join(os.homedir(), '.config', 'opencode', 'opencode-avatar.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     if (!config.falKey) {
-      throw new Error('falKey not found in config file');
+      console.warn('Warning: falKey not found in config file. Avatar generation will not work. Please set falKey in ~/.config/opencode/opencode-avatar.json');
+      return null;
     }
     return config.falKey;
   } catch (error) {
-    throw new Error(`Failed to read FAL_KEY from config file: ${error.message}`);
+    console.warn(`Warning: Failed to read config file: ${error.message}. Avatar generation will not work. Please ensure ~/.config/opencode/opencode-avatar.json exists and contains falKey.`);
+    return null;
   }
 }
 
@@ -183,14 +185,14 @@ function getAvatarPath(): string {
   return path.join(AVATAR_DIR, 'avatar.png');
 }
 
-async function uploadFile(filePath: string): Promise<string> {
+async function uploadFile(filePath: string, falKey: string): Promise<string> {
   const fileBuffer = fs.readFileSync(filePath);
   const fileName = path.basename(filePath);
 
   const tokenResponse = await fetch(`${FAL_REST_URL}/storage/auth/token?storage_type=fal-cdn-v3`, {
     method: 'POST',
     headers: {
-      'Authorization': `Key ${getFalKey()}`,
+      'Authorization': `Key ${falKey}`,
       'Accept': 'application/json',
       'Content-Type': 'application/json'
     },
@@ -224,11 +226,11 @@ async function uploadFile(filePath: string): Promise<string> {
   return result.access_url || result.url || '';
 }
 
-async function generateAvatarImage(imageUrl: string, prompt: string): Promise<{ images?: { url: string }[]; image?: { url: string }; url?: string }> {
+async function generateAvatarImage(imageUrl: string, prompt: string, falKey: string): Promise<{ images?: { url: string }[]; image?: { url: string }; url?: string }> {
   const response = await fetch(FAL_NANO_BANANA_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Key ${getFalKey()}`,
+      'Authorization': `Key ${falKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
@@ -255,6 +257,12 @@ async function downloadImage(url: string, outputPath: string): Promise<void> {
 }
 
 async function generateAvatarForPrompt(prompt: string): Promise<string> {
+  const falKey = getFalKey();
+  if (!falKey) {
+    console.warn('falKey is not set. Cannot generate avatar. Using default avatar.');
+    return path.join(AVATAR_DIR, 'avatar.png');
+  }
+
   const cachedFilename = promptToFilename(prompt);
   const cachedPath = path.join(AVATAR_DIR, cachedFilename);
 
@@ -279,10 +287,10 @@ async function generateAvatarForPrompt(prompt: string): Promise<string> {
 
 
       const sourceAvatar = path.join(AVATAR_DIR, 'avatar.png');
-      const uploadedUrl = await uploadFile(sourceAvatar);
+      const uploadedUrl = await uploadFile(sourceAvatar, falKey);
 
       const fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
-      const result = await generateAvatarImage(uploadedUrl, fullPrompt);
+      const result = await generateAvatarImage(uploadedUrl, fullPrompt, falKey);
 
       const outputUrl = result.images?.[0]?.url || result.image?.url || result.url;
       if (!outputUrl) {

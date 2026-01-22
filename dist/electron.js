@@ -410,11 +410,13 @@ function getFalKey() {
     const configPath = path.join(os.homedir(), ".config", "opencode", "opencode-avatar.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     if (!config.falKey) {
-      throw new Error("falKey not found in config file");
+      console.warn("Warning: falKey not found in config file. Avatar generation will not work. Please set falKey in ~/.config/opencode/opencode-avatar.json");
+      return null;
     }
     return config.falKey;
   } catch (error) {
-    throw new Error(`Failed to read FAL_KEY from config file: ${error.message}`);
+    console.warn(`Warning: Failed to read config file: ${error.message}. Avatar generation will not work. Please ensure ~/.config/opencode/opencode-avatar.json exists and contains falKey.`);
+    return null;
   }
 }
 var FAL_CDN_URL = "https://v3.fal.media";
@@ -564,13 +566,13 @@ function getAvatarPath() {
   }
   return path.join(AVATAR_DIR, "avatar.png");
 }
-async function uploadFile(filePath) {
+async function uploadFile(filePath, falKey) {
   const fileBuffer = fs.readFileSync(filePath);
   const fileName = path.basename(filePath);
   const tokenResponse = await fetch(`${FAL_REST_URL}/storage/auth/token?storage_type=fal-cdn-v3`, {
     method: "POST",
     headers: {
-      Authorization: `Key ${getFalKey()}`,
+      Authorization: `Key ${falKey}`,
       Accept: "application/json",
       "Content-Type": "application/json"
     },
@@ -598,11 +600,11 @@ async function uploadFile(filePath) {
   const result = await response.json();
   return result.access_url || result.url || "";
 }
-async function generateAvatarImage(imageUrl, prompt) {
+async function generateAvatarImage(imageUrl, prompt, falKey) {
   const response = await fetch(FAL_NANO_BANANA_URL, {
     method: "POST",
     headers: {
-      Authorization: `Key ${getFalKey()}`,
+      Authorization: `Key ${falKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -625,6 +627,11 @@ async function downloadImage(url, outputPath) {
   fs.writeFileSync(outputPath, buffer);
 }
 async function generateAvatarForPrompt(prompt) {
+  const falKey = getFalKey();
+  if (!falKey) {
+    console.warn("falKey is not set. Cannot generate avatar. Using default avatar.");
+    return path.join(AVATAR_DIR, "avatar.png");
+  }
   const cachedFilename = promptToFilename(prompt);
   const cachedPath = path.join(AVATAR_DIR, cachedFilename);
   if (fs.existsSync(cachedPath)) {
@@ -640,9 +647,9 @@ async function generateAvatarForPrompt(prompt) {
         return;
       }
       const sourceAvatar = path.join(AVATAR_DIR, "avatar.png");
-      const uploadedUrl = await uploadFile(sourceAvatar);
+      const uploadedUrl = await uploadFile(sourceAvatar, falKey);
       const fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
-      const result = await generateAvatarImage(uploadedUrl, fullPrompt);
+      const result = await generateAvatarImage(uploadedUrl, fullPrompt, falKey);
       const outputUrl = result.images?.[0]?.url || result.image?.url || result.url;
       if (!outputUrl) {
         throw new Error("No output image URL in response: " + JSON.stringify(result, null, 2));
