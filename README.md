@@ -86,20 +86,6 @@ All avatars are stored in `~/.config/opencode/` for persistence across updates.
 | **Thinking** | User message | "Thinking hard" animation while processing |
 | **Tool Active** | Tool execution | Pose based on current tool (write, read, etc.) |
 
-### Tool Mappings
-
-The avatar automatically detects which tools you're using and shows appropriate reactions:
-
-| Tool | Avatar Pose |
-|------|-------------|
-| `write` | Writing with pencil |
-| `read` | Reading a book |
-| `edit` | Editing with scissors |
-| `glob` | Searching with magnifying glass |
-| `grep` | Detective searching |
-| `bash` | Hacker typing |
-| `webfetch` | Surfing the web |
-
 ### File Naming
 
 Avatar images are cached with predictable filenames:
