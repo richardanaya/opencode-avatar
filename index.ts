@@ -8,8 +8,6 @@ const AVATAR_DIR = __dirname;
 const DEFAULT_AVATAR = "avatar.png";
 const THINKING_PROMPT = "thinking hard";
 const AVATAR_PORT = 47291;
-const LOG_FILE = path.join(AVATAR_DIR, "avatar.log");
-const LOCK_FILE = path.join(AVATAR_DIR, ".avatar.lock");
 
 // Function to create descriptive prompt from tool info
 function getToolPrompt(toolName: string, toolDescription?: string): string {
@@ -20,12 +18,6 @@ function getToolPrompt(toolName: string, toolDescription?: string): string {
   }
   // Fallback to just tool name
   return toolName;
-}
-
-function log(message: string): void {
-  const timestamp = new Date().toISOString();
-  const logLine = `[${timestamp}] [plugin] ${message}\n`;
-  fs.appendFileSync(LOG_FILE, logLine);
 }
 
 let electronProcess: ChildProcess | null = null;
@@ -51,14 +43,12 @@ function sendHeartbeat(): void {
 
 function startHeartbeat(): void {
   if (heartbeatInterval) return;
-  log('Starting heartbeat');
   sendHeartbeat(); // Send immediately
   heartbeatInterval = setInterval(sendHeartbeat, 500); // Every 0.5 seconds
 }
 
 function stopHeartbeat(): void {
   if (heartbeatInterval) {
-    log('Stopping heartbeat');
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
   }
@@ -88,7 +78,6 @@ async function isAvatarServerRunning(): Promise<boolean> {
 // Send shutdown command to Electron via HTTP
 async function sendShutdownCommand(): Promise<boolean> {
   return new Promise((resolve) => {
-    log('Sending shutdown command to Electron');
     const req = http.request({
       hostname: 'localhost',
       port: AVATAR_PORT,
@@ -131,20 +120,17 @@ function getAvatarPath(prompt?: string, toolName?: string): string {
 
 async function startElectron(avatarPath: string): Promise<void> {
   if (isShuttingDown) {
-    log(`Skipping Electron start - shutting down`);
     return;
   }
   
   // Check if avatar server is already running
   const alreadyRunning = await isAvatarServerRunning();
   if (alreadyRunning) {
-    log(`Avatar server already running on port ${AVATAR_PORT}, skipping spawn`);
     return;
   }
   
   // Kill any existing electron process first
   if (electronProcess) {
-    log(`Killing existing Electron process before starting new one`);
     try {
       electronProcess.kill('SIGKILL');
     } catch (e) {
@@ -153,13 +139,8 @@ async function startElectron(avatarPath: string): Promise<void> {
     electronProcess = null;
   }
   
-  log(`Starting Electron with avatar: ${avatarPath}`);
   const electronPath = path.join(AVATAR_DIR, 'node_modules', '.bin', 'electron');
   const electronEntry = path.join(AVATAR_DIR, 'dist', 'electron.js');
-  log(`Electron path: ${electronPath}`);
-  log(`Electron entry: ${electronEntry}`);
-  log(`Electron path exists: ${fs.existsSync(electronPath)}`);
-  log(`Electron entry exists: ${fs.existsSync(electronEntry)}`);
   
   const child = spawn(electronPath, [electronEntry, '--avatar', avatarPath, '--avatar-port', String(AVATAR_PORT)], {
     cwd: AVATAR_DIR,
@@ -169,21 +150,16 @@ async function startElectron(avatarPath: string): Promise<void> {
   
   // Capture stdout/stderr to log file
   child.stdout?.on('data', (data) => {
-    log(`[electron stdout] ${data.toString().trim()}`);
   });
   child.stderr?.on('data', (data) => {
-    log(`[electron stderr] ${data.toString().trim()}`);
   });
   child.on('error', (err) => {
-    log(`[electron spawn error] ${err.message}`);
   });
   child.on('exit', (code, signal) => {
-    log(`[electron exit] code=${code}, signal=${signal}`);
     electronProcess = null;
   });
   
   electronProcess = child;
-  log(`Electron process spawned with PID: ${child.pid}`);
 }
 
 async function shutdownElectron(): Promise<void> {
@@ -193,7 +169,6 @@ async function shutdownElectron(): Promise<void> {
   // Try HTTP shutdown first (works even if we didn't spawn this instance)
   const httpShutdown = await sendShutdownCommand();
   if (httpShutdown) {
-    log('Electron shut down via HTTP');
     electronProcess = null;
     return;
   }
@@ -201,11 +176,9 @@ async function shutdownElectron(): Promise<void> {
   // Fall back to killing the process directly
   if (electronProcess) {
     const pid = electronProcess.pid;
-    log(`Shutting down Electron process via kill (PID: ${pid})`);
     try {
       electronProcess.kill('SIGKILL');
     } catch (e) {
-      log(`Error killing Electron: ${e instanceof Error ? e.message : String(e)}`);
     }
     electronProcess = null;
   }
@@ -213,41 +186,33 @@ async function shutdownElectron(): Promise<void> {
 
 // Register cleanup handlers
 process.on('exit', () => {
-  log('Process exit event');
   shutdownElectron();
 });
 
 process.on('beforeExit', () => {
-  log('Process beforeExit event');
   shutdownElectron();
 });
 
 process.on('SIGINT', () => {
-  log('SIGINT received');
   shutdownElectron();
 });
 
 process.on('SIGTERM', () => {
-  log('SIGTERM received');
   shutdownElectron();
 });
 
 process.on('uncaughtException', (err) => {
-  log(`Uncaught exception: ${err.message}`);
   shutdownElectron();
 });
 
 async function setAvatarViaHttp(prompt?: string, toolName?: string): Promise<void> {
   const avatarPath = getAvatarPath(prompt, toolName);
-  log(`setAvatarViaHttp called with prompt: ${prompt || '(default)'}, toolName: ${toolName || 'none'}, avatarPath: ${avatarPath}`);
   if (avatarPath === currentAvatar) {
-    log(`Avatar unchanged, skipping update`);
     return;
   }
   currentAvatar = avatarPath;
 
   return new Promise((resolve) => {
-    log(`Sending HTTP request to set avatar`);
     const req = http.request({
       hostname: 'localhost',
       port: AVATAR_PORT,
@@ -255,11 +220,9 @@ async function setAvatarViaHttp(prompt?: string, toolName?: string): Promise<voi
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     }, () => {
-      log(`Set avatar request completed successfully`);
       resolve();
     });
     req.on('error', (err) => {
-      log(`Set avatar request failed: ${err.message}`);
       resolve();
     });
     req.write(JSON.stringify({ avatarPath }));
@@ -269,7 +232,6 @@ async function setAvatarViaHttp(prompt?: string, toolName?: string): Promise<voi
 
 
 export const AvatarPlugin: Plugin = async ({ client }) => {
-  log(`========== Plugin initializing ==========`);
 
   // Function to get tool description if available
   const getToolDescription = (toolName: string): string | undefined => {
@@ -285,13 +247,11 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         return tools[toolName].description;
       }
     } catch (e) {
-      log(`Could not get tool description for ${toolName}: ${e}`);
     }
     return undefined;
   };
 
   const showInfoToast = (message: string) => {
-    log(`Info toast: ${message}`);
     client.tui.showToast({
       body: {
         message,
@@ -301,7 +261,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
   };
 
   const showErrorToast = (message: string) => {
-    log(`Error toast: ${message}`);
     client.tui.showToast({
       body: {
         message,
@@ -311,7 +270,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
   };
 
   async function requestAvatarGeneration(prompt: string, showToasts = true, toolName?: string): Promise<void> {
-    log(`requestAvatarGeneration called with prompt: "${prompt}", showToasts: ${showToasts}, toolName: ${toolName || 'none'}`);
 
     if (showToasts) {
       showInfoToast(`Generating avatar: ${prompt}`);
@@ -334,7 +292,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
           }
 
           if (res.statusCode === 200) {
-            log(`Avatar generation succeeded for prompt: "${prompt}"`);
             if (showToasts) {
               showInfoToast(`Avatar ready: ${prompt}`);
             }
@@ -342,7 +299,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
             setAvatarViaHttp(prompt, toolName);
             resolve();
           } else {
-            log(`Avatar generation failed: ${data}`);
             if (showToasts) {
               showErrorToast(`Avatar failed: ${data}`);
             }
@@ -351,7 +307,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         });
       });
       req.on('error', (err) => {
-        log(`Avatar generation request error: ${err.message}`);
         if (showToasts) {
           showErrorToast(`Avatar generation error: ${err.message}`);
         }
@@ -365,65 +320,50 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
   // Start Electron on plugin load
   try {
     const initialAvatar = getAvatarPath();
-    log(`Initial avatar path: ${initialAvatar}`);
-    log(`Avatar file exists: ${fs.existsSync(initialAvatar)}`);
     await startElectron(initialAvatar);
     startHeartbeat();
     showInfoToast("Avatar started");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    log(`Failed to start avatar: ${message}`);
     showErrorToast(`Failed to start avatar: ${message}`);
   }
 
-  log(`Plugin initialization complete, returning hooks`);
   
   return {
     "chat.message": async (input, output) => {
-      log(`chat.message hook triggered, messageID: ${input.messageID}`);
       const userMessage = output.parts.find(
         (part) => part.type === "text" && part.messageID === input.messageID
       ) as { text: string } | undefined;
 
-      log(`User message found: ${!!userMessage}, isThinking: ${isThinking}`);
       if (userMessage?.text) {
-        log(`User message text: "${userMessage.text.substring(0, 100)}..."`);
       }
 
       if (userMessage?.text && !isThinking) {
         isThinking = true;
-        log(`Setting isThinking=true, requesting avatar generation`);
         await requestAvatarGeneration(THINKING_PROMPT);
       }
     },
 
     "tool.execute.before": async (input) => {
       const toolName = input.tool;
-      log(`tool.execute.before: ${toolName}`);
-      log(`Tool input available: ${JSON.stringify(input)}`);
 
       // Try to get tool description for better prompt
       const toolDescription = getToolDescription(toolName);
-      log(`Tool description: ${toolDescription || 'none found'}`);
 
       const prompt = getToolPrompt(toolName, toolDescription);
-      log(`Using prompt: "${prompt}"`);
 
       isToolActive = true;
 
       // Don't await - fire and forget so we don't block tool execution
       requestAvatarGeneration(prompt, false, toolName).catch((err) => {
-        log(`Failed to generate avatar for tool ${toolName}: ${err.message}`);
         isToolActive = false;
       });
     },
 
     event: async ({ event }) => {
-      log(`Event received: ${event.type}`);
       if (event.type === "session.idle" && (isThinking || isToolActive)) {
         isThinking = false;
         isToolActive = false;
-        log(`Session idle, resetting avatar`);
         await setAvatarViaHttp();
       }
     },

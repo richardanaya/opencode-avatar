@@ -14,19 +14,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirnameResolved = path.dirname(__filename);
 // __dirname is dist/ when compiled, so go up one level to find assets
 const AVATAR_DIR = path.join(__dirnameResolved, '..');
-const LOG_FILE = path.join(AVATAR_DIR, 'avatar.log');
 
-function log(message: string): void {
-  const timestamp = new Date().toISOString();
-  const logLine = `[${timestamp}] [electron] ${message}\n`;
-  fs.appendFileSync(LOG_FILE, logLine);
-}
 
-log('========== Electron process starting ==========');
-log(`__filename: ${__filename}`);
-log(`__dirnameResolved: ${__dirnameResolved}`);
-log(`AVATAR_DIR: ${AVATAR_DIR}`);
-log(`process.argv: ${process.argv.join(' ')}`);
+
 
 const HTML_CONTENT = `<!DOCTYPE html>
 <html>
@@ -98,7 +88,6 @@ const HTML_CONTENT = `<!DOCTYPE html>
         const chromaG = topLeftPixel[1];
         const chromaB = topLeftPixel[2];
 
-        console.log(\`Chroma key color: rgb(\${chromaR}, \${chromaG}, \${chromaB})\`);
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
@@ -129,7 +118,6 @@ const HTML_CONTENT = `<!DOCTYPE html>
     }
 
     ipcRenderer.on('set-avatar', (event, avatarDataUrl) => {
-      console.log('Received avatar data URL, length:', avatarDataUrl.length);
       loadAvatar(avatarDataUrl);
     });
 
@@ -275,11 +263,9 @@ async function generateAvatarForPrompt(prompt: string): Promise<string> {
         return;
       }
 
-      console.log(`Generating avatar for prompt: "${prompt}"`);
 
       const sourceAvatar = path.join(AVATAR_DIR, 'avatar.png');
       const uploadedUrl = await uploadFile(sourceAvatar);
-      console.log(`Uploaded: ${uploadedUrl}`);
 
       const fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
       const result = await generateAvatarImage(uploadedUrl, fullPrompt);
@@ -290,7 +276,6 @@ async function generateAvatarForPrompt(prompt: string): Promise<string> {
       }
 
       await downloadImage(outputUrl, cachedPath);
-      console.log(`Downloaded result to ${cachedFilename}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('Error generating avatar:', message);
@@ -308,11 +293,9 @@ async function generateAvatarForPrompt(prompt: string): Promise<string> {
 }
 
 function startHeartbeatChecker() {
-  log('Starting heartbeat checker');
   setInterval(() => {
     const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
     if (timeSinceLastHeartbeat > HEARTBEAT_TIMEOUT) {
-      log(`No heartbeat for ${timeSinceLastHeartbeat}ms, shutting down`);
       (app as typeof app & { isQuitting?: boolean }).isQuitting = true;
       app.quit();
     }
@@ -321,9 +304,7 @@ function startHeartbeatChecker() {
 
 function startAvatarServer() {
   const port = getAvatarPort();
-  log(`Starting HTTP server on port ${port}`);
   httpServer = http.createServer(async (req, res) => {
-    log(`HTTP request: ${req.method} ${req.url}`);
     if (req.method === 'POST' && req.url === '/set-avatar') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
@@ -372,7 +353,6 @@ function startAvatarServer() {
       });
     } else if (req.method === 'GET' && req.url === '/health') {
       // Health check endpoint
-      log('Health check request received');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok' }));
     } else if (req.method === 'POST' && req.url === '/heartbeat') {
@@ -382,12 +362,10 @@ function startAvatarServer() {
       res.end(JSON.stringify({ status: 'ok' }));
     } else if (req.method === 'POST' && req.url === '/shutdown') {
       // Shutdown endpoint
-      log('Shutdown request received');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'shutting down' }));
       // Give response time to send, then quit
       setTimeout(() => {
-        log('Executing shutdown');
         (app as typeof app & { isQuitting?: boolean }).isQuitting = true;
         app.quit();
       }, 100);
@@ -397,23 +375,18 @@ function startAvatarServer() {
     }
   });
   httpServer.listen(port, '127.0.0.1', () => {
-    log(`Avatar HTTP server listening on port ${port}`);
   });
   httpServer.on('error', (err) => {
-    log(`HTTP server error: ${err.message}`);
   });
 }
 
 function createWindow() {
-  log('createWindow called');
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
-  log(`Primary display workAreaSize: ${width}x${height}`);
 
   const windowWidth = 150;
   const windowHeight = 200;
 
-  log(`Creating BrowserWindow at position (${width - windowWidth - 100}, ${height - windowHeight})`);
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
@@ -433,72 +406,55 @@ function createWindow() {
     }
   });
 
-  log('Loading HTML content into window');
   mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(HTML_CONTENT)}`);
 
   mainWindow.webContents.on('did-finish-load', () => {
-    log('Window did-finish-load event fired');
     if (mainWindow) {
       const avatarPath = getAvatarPath();
-      log(`Sending initial avatar: ${avatarPath}`);
-      log(`Avatar file exists: ${fs.existsSync(avatarPath)}`);
       try {
         // Convert to base64 data URL since we're loading HTML from a data URL
         const imageBuffer = fs.readFileSync(avatarPath);
         const base64 = imageBuffer.toString('base64');
         const dataUrl = `data:image/png;base64,${base64}`;
-        log(`Sending avatar data URL (length: ${dataUrl.length})`);
         mainWindow.webContents.send('set-avatar', dataUrl);
-        log('Avatar sent to renderer');
 
         // Show window after avatar is set, without stealing focus
         setTimeout(() => {
           if (mainWindow && !mainWindow.isVisible()) {
-            log('Showing window after avatar load');
             mainWindow.show();
             mainWindow.setAlwaysOnTop(true, 'screen-saver'); // Keep on top but don't steal focus
           }
         }, 100);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        log(`ERROR reading/sending avatar: ${message}`);
       }
     }
   });
 
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    log(`Window did-fail-load: ${errorCode} - ${errorDescription}`);
   });
 
   mainWindow.on('close', (e) => {
-    log('Window close event');
     if (!(app as typeof app & { isQuitting?: boolean }).isQuitting) {
       e.preventDefault();
       mainWindow?.hide();
-      log('Window hidden instead of closed');
     }
   });
 
-  log('Window created successfully');
 }
 
 function createTray() {
-  log('createTray called');
   let trayIcon;
   try {
     const pngPath = path.join(AVATAR_DIR, 'avatar.png');
-    log(`Loading tray icon from: ${pngPath}`);
     trayIcon = nativeImage.createFromPath(pngPath);
     if (trayIcon.isEmpty()) {
-      log('PNG tray icon is empty, trying SVG');
       trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, 'avatar.svg'));
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    log(`Error loading tray icon: ${message}`);
     trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, 'avatar.svg'));
   }
-  log(`Tray icon isEmpty: ${trayIcon.isEmpty()}`);
   tray = new Tray(trayIcon);
 
   const contextMenu = Menu.buildFromTemplate([
@@ -524,18 +480,14 @@ function createTray() {
 app.commandLine.appendSwitch('enable-transparent-visuals');
 
 app.whenReady().then(() => {
-  log('App ready event fired');
   setTimeout(() => {
-    log('Timeout complete, creating window and tray');
     createWindow();
     createTray();
     startAvatarServer();
     startHeartbeatChecker();
-    log('All components initialized');
   }, 300);
 });
 
 app.on('window-all-closed', () => {
-  log('All windows closed');
   if (process.platform !== 'darwin') app.quit();
 });

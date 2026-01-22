@@ -410,18 +410,6 @@ var FAL_NANO_BANANA_URL = "https://fal.run/fal-ai/nano-banana-pro/edit";
 var __filename2 = fileURLToPath(import.meta.url);
 var __dirnameResolved = path.dirname(__filename2);
 var AVATAR_DIR = path.join(__dirnameResolved, "..");
-var LOG_FILE = path.join(AVATAR_DIR, "avatar.log");
-function log(message) {
-  const timestamp = new Date().toISOString();
-  const logLine = `[${timestamp}] [electron] ${message}
-`;
-  fs.appendFileSync(LOG_FILE, logLine);
-}
-log("========== Electron process starting ==========");
-log(`__filename: ${__filename2}`);
-log(`__dirnameResolved: ${__dirnameResolved}`);
-log(`AVATAR_DIR: ${AVATAR_DIR}`);
-log(`process.argv: ${process.argv.join(" ")}`);
 var HTML_CONTENT = `<!DOCTYPE html>
 <html>
 <head>
@@ -492,7 +480,6 @@ var HTML_CONTENT = `<!DOCTYPE html>
         const chromaG = topLeftPixel[1];
         const chromaB = topLeftPixel[2];
 
-        console.log(\`Chroma key color: rgb(\${chromaR}, \${chromaG}, \${chromaB})\`);
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
@@ -523,7 +510,6 @@ var HTML_CONTENT = `<!DOCTYPE html>
     }
 
     ipcRenderer.on('set-avatar', (event, avatarDataUrl) => {
-      console.log('Received avatar data URL, length:', avatarDataUrl.length);
       loadAvatar(avatarDataUrl);
     });
 
@@ -640,10 +626,8 @@ async function generateAvatarForPrompt(prompt) {
       if (fs.existsSync(cachedPath)) {
         return;
       }
-      console.log(`Generating avatar for prompt: "${prompt}"`);
       const sourceAvatar = path.join(AVATAR_DIR, "avatar.png");
       const uploadedUrl = await uploadFile(sourceAvatar);
-      console.log(`Uploaded: ${uploadedUrl}`);
       const fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
       const result = await generateAvatarImage(uploadedUrl, fullPrompt);
       const outputUrl = result.images?.[0]?.url || result.image?.url || result.url;
@@ -651,7 +635,6 @@ async function generateAvatarForPrompt(prompt) {
         throw new Error("No output image URL in response: " + JSON.stringify(result, null, 2));
       }
       await downloadImage(outputUrl, cachedPath);
-      console.log(`Downloaded result to ${cachedFilename}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Error generating avatar:", message);
@@ -665,11 +648,9 @@ async function generateAvatarForPrompt(prompt) {
   return cachedPath;
 }
 function startHeartbeatChecker() {
-  log("Starting heartbeat checker");
   setInterval(() => {
     const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
     if (timeSinceLastHeartbeat > HEARTBEAT_TIMEOUT) {
-      log(`No heartbeat for ${timeSinceLastHeartbeat}ms, shutting down`);
       app.isQuitting = true;
       app.quit();
     }
@@ -677,9 +658,7 @@ function startHeartbeatChecker() {
 }
 function startAvatarServer() {
   const port = getAvatarPort();
-  log(`Starting HTTP server on port ${port}`);
   httpServer = http.createServer(async (req, res) => {
-    log(`HTTP request: ${req.method} ${req.url}`);
     if (req.method === "POST" && req.url === "/set-avatar") {
       let body = "";
       req.on("data", (chunk) => {
@@ -731,7 +710,6 @@ function startAvatarServer() {
         }
       });
     } else if (req.method === "GET" && req.url === "/health") {
-      log("Health check request received");
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "ok" }));
     } else if (req.method === "POST" && req.url === "/heartbeat") {
@@ -739,11 +717,9 @@ function startAvatarServer() {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "ok" }));
     } else if (req.method === "POST" && req.url === "/shutdown") {
-      log("Shutdown request received");
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "shutting down" }));
       setTimeout(() => {
-        log("Executing shutdown");
         app.isQuitting = true;
         app.quit();
       }, 100);
@@ -752,21 +728,14 @@ function startAvatarServer() {
       res.end();
     }
   });
-  httpServer.listen(port, "127.0.0.1", () => {
-    log(`Avatar HTTP server listening on port ${port}`);
-  });
-  httpServer.on("error", (err) => {
-    log(`HTTP server error: ${err.message}`);
-  });
+  httpServer.listen(port, "127.0.0.1", () => {});
+  httpServer.on("error", (err) => {});
 }
 function createWindow() {
-  log("createWindow called");
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
-  log(`Primary display workAreaSize: ${width}x${height}`);
   const windowWidth = 150;
   const windowHeight = 200;
-  log(`Creating BrowserWindow at position (${width - windowWidth - 100}, ${height - windowHeight})`);
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
@@ -785,64 +754,46 @@ function createWindow() {
       contextIsolation: false
     }
   });
-  log("Loading HTML content into window");
   mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(HTML_CONTENT)}`);
   mainWindow.webContents.on("did-finish-load", () => {
-    log("Window did-finish-load event fired");
     if (mainWindow) {
       const avatarPath = getAvatarPath();
-      log(`Sending initial avatar: ${avatarPath}`);
-      log(`Avatar file exists: ${fs.existsSync(avatarPath)}`);
       try {
         const imageBuffer = fs.readFileSync(avatarPath);
         const base64 = imageBuffer.toString("base64");
         const dataUrl = `data:image/png;base64,${base64}`;
-        log(`Sending avatar data URL (length: ${dataUrl.length})`);
         mainWindow.webContents.send("set-avatar", dataUrl);
-        log("Avatar sent to renderer");
         setTimeout(() => {
           if (mainWindow && !mainWindow.isVisible()) {
-            log("Showing window after avatar load");
             mainWindow.show();
             mainWindow.setAlwaysOnTop(true, "screen-saver");
           }
         }, 100);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        log(`ERROR reading/sending avatar: ${message}`);
       }
     }
   });
-  mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription) => {
-    log(`Window did-fail-load: ${errorCode} - ${errorDescription}`);
-  });
+  mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription) => {});
   mainWindow.on("close", (e) => {
-    log("Window close event");
     if (!app.isQuitting) {
       e.preventDefault();
       mainWindow?.hide();
-      log("Window hidden instead of closed");
     }
   });
-  log("Window created successfully");
 }
 function createTray() {
-  log("createTray called");
   let trayIcon;
   try {
     const pngPath = path.join(AVATAR_DIR, "avatar.png");
-    log(`Loading tray icon from: ${pngPath}`);
     trayIcon = nativeImage.createFromPath(pngPath);
     if (trayIcon.isEmpty()) {
-      log("PNG tray icon is empty, trying SVG");
       trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, "avatar.svg"));
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    log(`Error loading tray icon: ${message}`);
     trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, "avatar.svg"));
   }
-  log(`Tray icon isEmpty: ${trayIcon.isEmpty()}`);
   tray = new Tray(trayIcon);
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -864,18 +815,14 @@ function createTray() {
 }
 app.commandLine.appendSwitch("enable-transparent-visuals");
 app.whenReady().then(() => {
-  log("App ready event fired");
   setTimeout(() => {
-    log("Timeout complete, creating window and tray");
     createWindow();
     createTray();
     startAvatarServer();
     startHeartbeatChecker();
-    log("All components initialized");
   }, 300);
 });
 app.on("window-all-closed", () => {
-  log("All windows closed");
   if (process.platform !== "darwin")
     app.quit();
 });

@@ -2,7 +2,7 @@
 
 A dynamic desktop avatar plugin for OpenCode that displays animated character reactions based on your coding activities.
 
-![Avatar Demo](https://via.placeholder.com/300x200/333/fff?text=Avatar+Demo)
+<div align="center"><img src="avatar.png" alt="Avatar" /></div>
 
 ## Features
 
@@ -110,13 +110,9 @@ The avatar responds automatically, but you can also:
 
 ### Logs and Debugging
 
-Check the log file for detailed information:
+Check the console output for detailed information.
 
-```bash
-tail -f opencode-avatar/avatar.log
-```
-
-The log shows:
+The output shows:
 - Plugin initialization
 - Avatar generation requests
 - Tool execution detection
@@ -144,6 +140,7 @@ The log shows:
 ### Safety Features
 
 - **Duplicate Prevention**: Only one avatar instance runs
+- **Multi-Instance Support**: Multiple OpenCode instances share the same avatar window
 - **Auto-Shutdown**: Closes when OpenCode exits
 - **Focus Protection**: Never steals keyboard focus
 - **Error Handling**: Graceful fallbacks on failures
@@ -170,7 +167,7 @@ The log shows:
 
 ### Avatar Not Showing
 
-1. Check logs: `tail -f avatar.log`
+1. Check console output for errors
 2. Verify FAL.ai API key in `.env`
 3. Ensure port 47291 is available
 4. Try restarting OpenCode
