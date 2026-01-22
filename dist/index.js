@@ -4,7 +4,7 @@ import { spawn } from "child_process";
 import * as path from "path";
 import * as http from "http";
 import * as fs from "fs";
-var __dirname = "/var/home/wizard/opencode-avatar";
+var __dirname = "/var/home/wizard/av";
 var AVATAR_DIR = __dirname;
 var DEFAULT_AVATAR = "avatar.png";
 var THINKING_PROMPT = "thinking hard";

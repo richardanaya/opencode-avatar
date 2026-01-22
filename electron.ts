@@ -29,7 +29,8 @@ const FAL_NANO_BANANA_URL = 'https://fal.run/fal-ai/nano-banana-pro/edit';
 const __filename = fileURLToPath(import.meta.url);
 const __dirnameResolved = path.dirname(__filename);
 // __dirname is dist/ when compiled, so go up one level to find assets
-const AVATAR_DIR = path.join(__dirnameResolved, '..');
+// const AVATAR_DIR = path.join(__dirnameResolved, '..');
+const AVATAR_DIR = path.join(os.homedir(), '.config', 'opencode');
 
 
 
@@ -501,7 +502,21 @@ function createTray() {
 
 app.commandLine.appendSwitch('enable-transparent-visuals');
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Ensure avatar directory exists
+  fs.mkdirSync(AVATAR_DIR, { recursive: true });
+
+  // Check and download default avatar if needed
+  const avatarPath = path.join(AVATAR_DIR, 'avatar.png');
+  if (!fs.existsSync(avatarPath)) {
+    try {
+      await downloadImage('https://richardanaya.github.io/opencode-avatar/avatar.png', avatarPath);
+      console.log('Downloaded default avatar to', avatarPath);
+    } catch (error) {
+      console.warn('Failed to download default avatar:', error);
+    }
+  }
+
   setTimeout(() => {
     createWindow();
     createTray();

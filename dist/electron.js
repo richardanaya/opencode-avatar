@@ -424,7 +424,7 @@ var FAL_REST_URL = "https://rest.alpha.fal.ai";
 var FAL_NANO_BANANA_URL = "https://fal.run/fal-ai/nano-banana-pro/edit";
 var __filename2 = fileURLToPath(import.meta.url);
 var __dirnameResolved = path.dirname(__filename2);
-var AVATAR_DIR = path.join(__dirnameResolved, "..");
+var AVATAR_DIR = path.join(os.homedir(), ".config", "opencode");
 var HTML_CONTENT = `<!DOCTYPE html>
 <html>
 <head>
@@ -834,7 +834,17 @@ function createTray() {
   tray.on("click", () => mainWindow?.isVisible() ? mainWindow.hide() : mainWindow?.show());
 }
 app.commandLine.appendSwitch("enable-transparent-visuals");
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  fs.mkdirSync(AVATAR_DIR, { recursive: true });
+  const avatarPath = path.join(AVATAR_DIR, "avatar.png");
+  if (!fs.existsSync(avatarPath)) {
+    try {
+      await downloadImage("https://richardanaya.github.io/opencode-avatar/avatar.png", avatarPath);
+      console.log("Downloaded default avatar to", avatarPath);
+    } catch (error) {
+      console.warn("Failed to download default avatar:", error);
+    }
+  }
   setTimeout(() => {
     createWindow();
     createTray();

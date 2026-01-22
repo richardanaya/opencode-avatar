@@ -56,10 +56,26 @@ Get your FAL.ai API key from [fal.ai](https://fal.ai).
 
 ### Avatar Images
 
-The plugin comes with a default avatar (`avatar.png`). Place custom avatars in the plugin directory:
+The plugin automatically downloads a default avatar (`avatar.png`) to `~/.config/opencode/avatar.png` if it doesn't exist. This serves as the source image for generating animated variants.
 
-- `avatar.png` - Default avatar (required)
-- `avatar.svg` - Fallback avatar (optional)
+#### Using a Custom Avatar
+
+To use your own custom avatar:
+
+1. Place your custom `avatar.png` image in `~/.config/opencode/`
+2. The plugin will use this as the base image for all avatar variants
+3. Ensure your image has a solid green background (RGB: 0, 255, 0) for best results with the chroma key processing
+
+#### Generated Variants
+
+The plugin generates and caches avatar variants in the same directory:
+
+- `avatar_write.png` - Writing pose
+- `avatar_read.png` - Reading pose
+- `avatar_thinking_hard.png` - Thinking animation
+- And more based on tool usage
+
+All avatars are stored in `~/.config/opencode/` for persistence across updates.
 
 ## How It Works
 
