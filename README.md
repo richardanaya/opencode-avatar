@@ -17,12 +17,6 @@ A dynamic desktop avatar plugin for OpenCode that displays animated character re
 
 ## Installation
 
-### Option 1: From NPM (Recommended)
-
-```bash
-npm install -g opencode-avatar
-```
-
 Then add to your OpenCode config:
 
 ```json
