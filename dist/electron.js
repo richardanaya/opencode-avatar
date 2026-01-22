@@ -402,8 +402,21 @@ import { app, BrowserWindow, screen, Tray, Menu, nativeImage } from "electron";
 import * as path from "path";
 import * as http from "http";
 import * as fs from "fs";
+import * as os from "os";
 import { fileURLToPath } from "url";
 require_main().config();
+function getFalKey() {
+  try {
+    const configPath = path.join(os.homedir(), ".config", "opencode", "opencode-avatar.json");
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    if (!config.falKey) {
+      throw new Error("falKey not found in config file");
+    }
+    return config.falKey;
+  } catch (error) {
+    throw new Error(`Failed to read FAL_KEY from config file: ${error.message}`);
+  }
+}
 var FAL_CDN_URL = "https://v3.fal.media";
 var FAL_REST_URL = "https://rest.alpha.fal.ai";
 var FAL_NANO_BANANA_URL = "https://fal.run/fal-ai/nano-banana-pro/edit";
@@ -557,7 +570,7 @@ async function uploadFile(filePath) {
   const tokenResponse = await fetch(`${FAL_REST_URL}/storage/auth/token?storage_type=fal-cdn-v3`, {
     method: "POST",
     headers: {
-      Authorization: `Key ${process.env.FAL_KEY}`,
+      Authorization: `Key ${getFalKey()}`,
       Accept: "application/json",
       "Content-Type": "application/json"
     },
@@ -589,7 +602,7 @@ async function generateAvatarImage(imageUrl, prompt) {
   const response = await fetch(FAL_NANO_BANANA_URL, {
     method: "POST",
     headers: {
-      Authorization: `Key ${process.env.FAL_KEY}`,
+      Authorization: `Key ${getFalKey()}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({

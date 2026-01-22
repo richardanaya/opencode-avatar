@@ -42,12 +42,14 @@ Then add to your OpenCode config:
 
 ## Configuration
 
-### Environment Variables
+### API Key Configuration
 
-Create a `.env` file in the plugin directory:
+Create a config file at `~/.config/opencode/opencode-avatar.json`:
 
-```env
-FAL_KEY=your_fal_ai_api_key_here
+```json
+{
+  "falKey": "your_fal_ai_api_key_here"
+}
 ```
 
 Get your FAL.ai API key from [fal.ai](https://fal.ai).
@@ -168,7 +170,7 @@ The output shows:
 ### Avatar Not Showing
 
 1. Check console output for errors
-2. Verify FAL.ai API key in `.env`
+2. Verify FAL.ai API key in `~/.config/opencode/opencode-avatar.json`
 3. Ensure port 47291 is available
 4. Try restarting OpenCode
 
