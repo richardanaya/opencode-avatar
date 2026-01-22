@@ -1,0 +1,56 @@
+{
+  "name": "opencode-avatar",
+  "version": "0.1.0",
+  "description": "Dynamic desktop avatar plugin for OpenCode that reacts to your coding activities",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "avatar.png",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build ./index.ts --outdir ./dist --target bun && bun build ./electron.ts --outdir ./dist --target node --external electron && bun run build:types",
+    "build:types": "tsc --emitDeclarationOnly",
+    "start": "bun run build && electron dist/electron.js",
+    "start:thinking": "bun run build && electron dist/electron.js --avatar avatar_thinking_hard.png",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "electron": "^28.0.0",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^1.1.25"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "avatar",
+    "desktop",
+    "ai",
+    "coding",
+    "assistant"
+  ],
+  "author": "OpenCode Community",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opencode-ai/avatar-plugin.git"
+  },
+  "homepage": "https://github.com/opencode-ai/avatar-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/opencode-ai/avatar-plugin/issues"
+  }
+}
