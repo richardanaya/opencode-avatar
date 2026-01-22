@@ -2,7 +2,7 @@
 
 A dynamic desktop avatar plugin for OpenCode that displays animated character reactions based on your coding activities.
 
-<div align="center"><img src="https://github.com/user-attachments/assets/504043c9-954d-4cfd-93ff-0904d2d4eb95" alt="Avatar" width="200" /></div>
+<div align="center"><img src="https://github.com/user-attachments/assets/504043c9-954d-4cfd-93ff-0904d2d4eb95" alt="Avatar" width="300" /></div>
 
 ## Features
 
@@ -31,15 +31,6 @@ Then add to your OpenCode config:
   "plugin": ["opencode-avatar"]
 }
 ```
-
-### Option 2: Local Development
-
-1. Clone this repository
-2. Run `npm install`
-3. Run `npm run build`
-4. Copy to your OpenCode plugins directory:
-   - Project: `.opencode/plugins/`
-   - Global: `~/.config/opencode/plugins/`
 
 ## Configuration
 
