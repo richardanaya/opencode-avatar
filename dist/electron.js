@@ -405,18 +405,18 @@ import * as fs from "fs";
 import * as os from "os";
 import { fileURLToPath } from "url";
 require_main().config();
-function getFalKey() {
+function getConfig() {
   try {
     const configPath = path.join(os.homedir(), ".config", "opencode", "opencode-avatar.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     if (!config.falKey) {
       console.warn("Warning: falKey not found in config file. Avatar generation will not work. Please set falKey in ~/.config/opencode/opencode-avatar.json");
-      return null;
+      return { falKey: null, prompt: null };
     }
-    return config.falKey;
+    return { falKey: config.falKey, prompt: config.prompt || null };
   } catch (error) {
     console.warn(`Warning: Failed to read config file: ${error.message}. Avatar generation will not work. Please ensure ~/.config/opencode/opencode-avatar.json exists and contains falKey.`);
-    return null;
+    return { falKey: null, prompt: null };
   }
 }
 var FAL_CDN_URL = "https://v3.fal.media";
@@ -627,8 +627,8 @@ async function downloadImage(url, outputPath) {
   fs.writeFileSync(outputPath, buffer);
 }
 async function generateAvatarForPrompt(prompt) {
-  const falKey = getFalKey();
-  if (!falKey) {
+  const config = getConfig();
+  if (!config.falKey) {
     console.warn("falKey is not set. Cannot generate avatar. Using default avatar.");
     return path.join(AVATAR_DIR, "avatar.png");
   }
@@ -647,9 +647,12 @@ async function generateAvatarForPrompt(prompt) {
         return;
       }
       const sourceAvatar = path.join(AVATAR_DIR, "avatar.png");
-      const uploadedUrl = await uploadFile(sourceAvatar, falKey);
-      const fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
-      const result = await generateAvatarImage(uploadedUrl, fullPrompt, falKey);
+      const uploadedUrl = await uploadFile(sourceAvatar, config.falKey);
+      let fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
+      if (config.prompt) {
+        fullPrompt += ` ${config.prompt}`;
+      }
+      const result = await generateAvatarImage(uploadedUrl, fullPrompt, config.falKey);
       const outputUrl = result.images?.[0]?.url || result.image?.url || result.url;
       if (!outputUrl) {
         throw new Error("No output image URL in response: " + JSON.stringify(result, null, 2));

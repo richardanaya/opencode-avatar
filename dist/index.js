@@ -21,6 +21,7 @@ var currentAvatar = DEFAULT_AVATAR;
 var isThinking = false;
 var isToolActive = false;
 var isShuttingDown = false;
+var idleTriggered = false;
 var heartbeatInterval = null;
 function sendHeartbeat() {
   const req = http.request({
@@ -229,12 +230,15 @@ var AvatarPlugin = async ({ client }) => {
         res.on("end", () => {
           if (!showToasts) {
             isToolActive = false;
+            isThinking = false;
           }
           if (res.statusCode === 200) {
             if (showToasts) {
               showInfoToast(`Avatar ready: ${prompt}`);
             }
-            setAvatarViaHttp(prompt, toolName);
+            if (!idleTriggered || showToasts) {
+              setAvatarViaHttp(prompt, toolName);
+            }
             resolve();
           } else {
             if (showToasts) {
@@ -268,14 +272,18 @@ var AvatarPlugin = async ({ client }) => {
       const userMessage = output.parts.find((part) => part.type === "text" && part.messageID === input.messageID);
       if (userMessage?.text) {}
       if (userMessage?.text && !isThinking) {
+        idleTriggered = false;
         isThinking = true;
-        await requestAvatarGeneration(THINKING_PROMPT);
+        requestAvatarGeneration(THINKING_PROMPT, false).catch(() => {
+          isThinking = false;
+        });
       }
     },
     "tool.execute.before": async (input) => {
       const toolName = input.tool;
       const toolDescription = getToolDescription(toolName);
       const prompt = getToolPrompt(toolName, toolDescription);
+      idleTriggered = false;
       isToolActive = true;
       requestAvatarGeneration(prompt, false, toolName).catch((err) => {
         isToolActive = false;
@@ -283,6 +291,7 @@ var AvatarPlugin = async ({ client }) => {
     },
     event: async ({ event }) => {
       if (event.type === "session.idle" && (isThinking || isToolActive)) {
+        idleTriggered = true;
         isThinking = false;
         isToolActive = false;
         await setAvatarViaHttp();

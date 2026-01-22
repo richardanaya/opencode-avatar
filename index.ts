@@ -25,6 +25,7 @@ let currentAvatar: string = DEFAULT_AVATAR;
 let isThinking = false;
 let isToolActive = false;
 let isShuttingDown = false;
+let idleTriggered = false;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 // Send heartbeat to keep Electron alive
@@ -289,14 +290,17 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
           // Reset tool active flag when tool avatar generation completes
           if (!showToasts) {
             isToolActive = false;
+            isThinking = false;
           }
 
           if (res.statusCode === 200) {
             if (showToasts) {
               showInfoToast(`Avatar ready: ${prompt}`);
             }
-            // Set the avatar with the tool name for proper filename
-            setAvatarViaHttp(prompt, toolName);
+            // Set the avatar with the tool name for proper filename, unless idle was triggered for thinking
+            if (!idleTriggered || showToasts) {
+              setAvatarViaHttp(prompt, toolName);
+            }
             resolve();
           } else {
             if (showToasts) {
@@ -339,8 +343,12 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       }
 
       if (userMessage?.text && !isThinking) {
+        idleTriggered = false;
         isThinking = true;
-        await requestAvatarGeneration(THINKING_PROMPT);
+        // Don't await - fire and forget so we don't block chat response
+        requestAvatarGeneration(THINKING_PROMPT, false).catch(() => {
+          isThinking = false;
+        });
       }
     },
 
@@ -352,6 +360,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
 
       const prompt = getToolPrompt(toolName, toolDescription);
 
+      idleTriggered = false;
       isToolActive = true;
 
       // Don't await - fire and forget so we don't block tool execution
@@ -362,6 +371,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
 
     event: async ({ event }) => {
       if (event.type === "session.idle" && (isThinking || isToolActive)) {
+        idleTriggered = true;
         isThinking = false;
         isToolActive = false;
         await setAvatarViaHttp();

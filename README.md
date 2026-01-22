@@ -13,6 +13,7 @@ A dynamic desktop avatar plugin for OpenCode that displays animated character re
 - **Non-Intrusive**: Appears without stealing focus, stays on top
 - **Auto-Shutdown**: Automatically closes when OpenCode exits
 - **Toast Notifications**: Shows progress for avatar generation
+- **Customizable Prompts**: Optional prompt configuration for personalized avatar styles
 
 ## Installation
 
@@ -53,6 +54,19 @@ Create a config file at `~/.config/opencode/opencode-avatar.json`:
 ```
 
 Get your FAL.ai API key from [fal.ai](https://fal.ai).
+
+### Custom Prompt Configuration (Optional)
+
+You can optionally add a `"prompt"` field to customize how avatars are generated. This text will be appended to all avatar generation prompts:
+
+```json
+{
+  "falKey": "your_fal_ai_api_key_here",
+  "prompt": "in a futuristic cyberpunk style with neon lights"
+}
+```
+
+The prompt will be added to the end of the AI generation request, allowing you to customize the avatar style, theme, or appearance consistently across all avatar variants.
 
 ### Avatar Images
 
