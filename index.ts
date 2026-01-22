@@ -1,11 +1,13 @@
-import { type Plugin } from "@opencode-ai/plugin";
-import { spawn, type ChildProcess } from "child_process";
-import * as path from "path";
-import * as http from "http";
-import * as fs from "fs";
+ import { type Plugin } from "@opencode-ai/plugin";
+ import { spawn, type ChildProcess } from "child_process";
+ import * as path from "path";
+ import * as http from "http";
+ import * as fs from "fs";
+ import * as os from "os";
 
 const AVATAR_DIR = __dirname;
 const DEFAULT_AVATAR = "avatar.png";
+const USER_AVATAR = path.join(os.homedir(), '.config', 'opencode', 'avatar.png');
 const THINKING_PROMPT = "thinking hard";
 const AVATAR_PORT = 47291;
 
@@ -21,7 +23,7 @@ function getToolPrompt(toolName: string, toolDescription?: string): string {
 }
 
 let electronProcess: ChildProcess | null = null;
-let currentAvatar: string = DEFAULT_AVATAR;
+let currentAvatar: string = getAvatarPath();
 let isThinking = false;
 let isToolActive = false;
 let isShuttingDown = false;
@@ -109,6 +111,9 @@ function promptToFilename(prompt: string, toolName?: string): string {
 
 function getAvatarPath(prompt?: string, toolName?: string): string {
   if (!prompt) {
+    if (fs.existsSync(USER_AVATAR)) {
+      return USER_AVATAR;
+    }
     return path.join(AVATAR_DIR, DEFAULT_AVATAR);
   }
   const filename = promptToFilename(prompt, toolName);

@@ -4,9 +4,11 @@ import { spawn } from "child_process";
 import * as path from "path";
 import * as http from "http";
 import * as fs from "fs";
+import * as os from "os";
 var __dirname = "/var/home/wizard/av";
 var AVATAR_DIR = __dirname;
 var DEFAULT_AVATAR = "avatar.png";
+var USER_AVATAR = path.join(os.homedir(), ".config", "opencode", "avatar.png");
 var THINKING_PROMPT = "thinking hard";
 var AVATAR_PORT = 47291;
 function getToolPrompt(toolName, toolDescription) {
@@ -17,7 +19,7 @@ function getToolPrompt(toolName, toolDescription) {
   return toolName;
 }
 var electronProcess = null;
-var currentAvatar = DEFAULT_AVATAR;
+var currentAvatar = getAvatarPath();
 var isThinking = false;
 var isToolActive = false;
 var isShuttingDown = false;
@@ -91,6 +93,9 @@ function promptToFilename(prompt, toolName) {
 }
 function getAvatarPath(prompt, toolName) {
   if (!prompt) {
+    if (fs.existsSync(USER_AVATAR)) {
+      return USER_AVATAR;
+    }
     return path.join(AVATAR_DIR, DEFAULT_AVATAR);
   }
   const filename = promptToFilename(prompt, toolName);
