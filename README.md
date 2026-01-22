@@ -2,7 +2,7 @@
 
 A dynamic desktop avatar plugin for OpenCode that displays animated character reactions based on your coding activities.
 
-<div align="center"><img src="avatar.png" alt="Avatar" width="200" /></div>
+<div align="center"><img src="https://github.com/user-attachments/assets/504043c9-954d-4cfd-93ff-0904d2d4eb95" alt="Avatar" width="200" /></div>
 
 ## Features
 
