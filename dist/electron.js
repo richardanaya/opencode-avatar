@@ -524,8 +524,8 @@ var HTML_CONTENT = `<!DOCTYPE html>
       };
     }
 
-    ipcRenderer.on('set-avatar', (event, avatarDataUrl) => {
-      loadAvatar(avatarDataUrl);
+    ipcRenderer.on('set-avatar', (event, avatarPath) => {
+      loadAvatar('file://' + avatarPath);
     });
 
     // Fallback: load default avatar if no IPC message received
@@ -691,10 +691,8 @@ function startAvatarServer() {
         try {
           const { avatarPath } = JSON.parse(body);
           if (mainWindow && avatarPath) {
-            const imageBuffer = fs.readFileSync(avatarPath);
-            const base64 = imageBuffer.toString("base64");
-            const dataUrl = `data:image/png;base64,${base64}`;
-            mainWindow.webContents.send("set-avatar", dataUrl);
+            mainWindow.webContents.send("set-avatar", avatarPath);
+            updateTrayIcon(avatarPath);
           }
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: true }));
@@ -718,10 +716,8 @@ function startAvatarServer() {
           }
           const avatarPath = await generateAvatarForPrompt(prompt);
           if (mainWindow) {
-            const imageBuffer = fs.readFileSync(avatarPath);
-            const base64 = imageBuffer.toString("base64");
-            const dataUrl = `data:image/png;base64,${base64}`;
-            mainWindow.webContents.send("set-avatar", dataUrl);
+            mainWindow.webContents.send("set-avatar", avatarPath);
+            updateTrayIcon(avatarPath);
           }
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: true, avatarPath }));
@@ -782,10 +778,8 @@ function createWindow() {
     if (mainWindow) {
       const avatarPath = getAvatarPath();
       try {
-        const imageBuffer = fs.readFileSync(avatarPath);
-        const base64 = imageBuffer.toString("base64");
-        const dataUrl = `data:image/png;base64,${base64}`;
-        mainWindow.webContents.send("set-avatar", dataUrl);
+        mainWindow.webContents.send("set-avatar", avatarPath);
+        updateTrayIcon(avatarPath);
         setTimeout(() => {
           if (mainWindow && !mainWindow.isVisible()) {
             mainWindow.show();
@@ -809,10 +803,7 @@ function createTray() {
   let trayIcon;
   try {
     const pngPath = path.join(AVATAR_DIR, "avatar.png");
-    trayIcon = nativeImage.createFromPath(pngPath);
-    if (trayIcon.isEmpty()) {
-      trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, "avatar.svg"));
-    }
+    trayIcon = processTrayIcon(pngPath);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, "avatar.svg"));
@@ -835,6 +826,35 @@ function createTray() {
   tray.setToolTip("Desktop Clippy");
   tray.setContextMenu(contextMenu);
   tray.on("click", () => mainWindow?.isVisible() ? mainWindow.hide() : mainWindow?.show());
+}
+function processTrayIcon(pngPath) {
+  let trayIcon = nativeImage.createFromPath(pngPath);
+  if (!trayIcon.isEmpty()) {
+    const size = trayIcon.getSize();
+    const bitmap = trayIcon.getBitmap();
+    const chromaR = bitmap[0];
+    const chromaG = bitmap[1];
+    const chromaB = bitmap[2];
+    const tolerance = 30;
+    for (let i = 0;i < bitmap.length; i += 4) {
+      const r = bitmap[i];
+      const g = bitmap[i + 1];
+      const b = bitmap[i + 2];
+      if (Math.abs(r - chromaR) <= tolerance && Math.abs(g - chromaG) <= tolerance && Math.abs(b - chromaB) <= tolerance) {
+        bitmap[i + 3] = 0;
+      }
+    }
+    trayIcon = nativeImage.createFromBitmap(bitmap, size);
+  } else {
+    trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, "avatar.svg"));
+  }
+  return trayIcon;
+}
+function updateTrayIcon(avatarPath) {
+  if (tray) {
+    const trayIcon = processTrayIcon(avatarPath);
+    tray.setImage(trayIcon);
+  }
 }
 app.commandLine.appendSwitch("enable-transparent-visuals");
 app.whenReady().then(async () => {
