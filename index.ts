@@ -5,9 +5,9 @@
  import * as fs from "fs";
  import * as os from "os";
 
-const AVATAR_DIR = __dirname;
+const PLUGIN_DIR = __dirname; // Where the plugin code lives
+const AVATAR_DIR = path.join(os.homedir(), '.config', 'opencode'); // Where avatars are stored
 const DEFAULT_AVATAR = "avatar.png";
-const USER_AVATAR = path.join(os.homedir(), '.config', 'opencode', 'avatar.png');
 const THINKING_PROMPT = "thinking hard";
 const AVATAR_PORT = 47291;
 
@@ -111,18 +111,16 @@ function promptToFilename(prompt: string, toolName?: string): string {
 }
 
 function getAvatarPath(prompt?: string, toolName?: string): string {
+  const defaultAvatar = path.join(AVATAR_DIR, DEFAULT_AVATAR);
   if (!prompt) {
-    if (fs.existsSync(USER_AVATAR)) {
-      return USER_AVATAR;
-    }
-    return path.join(AVATAR_DIR, DEFAULT_AVATAR);
+    return defaultAvatar;
   }
   const filename = promptToFilename(prompt, toolName);
   const avatarPath = path.join(AVATAR_DIR, filename);
   if (fs.existsSync(avatarPath)) {
     return avatarPath;
   }
-  return path.join(AVATAR_DIR, DEFAULT_AVATAR);
+  return defaultAvatar;
 }
 
 async function startElectron(avatarPath: string): Promise<void> {
@@ -146,11 +144,11 @@ async function startElectron(avatarPath: string): Promise<void> {
     electronProcess = null;
   }
   
-  const electronPath = path.join(AVATAR_DIR, 'node_modules', '.bin', 'electron');
-  const electronEntry = path.join(AVATAR_DIR, 'dist', 'electron.js');
-  
+  const electronPath = path.join(PLUGIN_DIR, 'node_modules', '.bin', 'electron');
+  const electronEntry = path.join(PLUGIN_DIR, 'dist', 'electron.js');
+
   const child = spawn(electronPath, [electronEntry, '--avatar', avatarPath, '--avatar-port', String(AVATAR_PORT)], {
-    cwd: AVATAR_DIR,
+    cwd: PLUGIN_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false
   });
@@ -212,9 +210,9 @@ process.on('uncaughtException', (err) => {
   shutdownElectron();
 });
 
-async function setAvatarViaHttp(prompt?: string, toolName?: string): Promise<void> {
+async function setAvatarViaHttp(prompt?: string, toolName?: string, force?: boolean): Promise<void> {
   const avatarPath = getAvatarPath(prompt, toolName);
-  if (avatarPath === currentAvatar) {
+  if (!force && avatarPath === currentAvatar) {
     return;
   }
   currentAvatar = avatarPath;
@@ -383,7 +381,9 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         isThinking = false;
         isToolActive = false;
         currentRequestId = null; // Invalidate any ongoing avatar generation
-        await setAvatarViaHttp();
+        // Force the reset because Electron may have changed the displayed avatar
+        // via /generate-avatar before we could cancel it
+        await setAvatarViaHttp(undefined, undefined, true);
       }
     },
   };

@@ -6,9 +6,9 @@ import * as http from "http";
 import * as fs from "fs";
 import * as os from "os";
 var __dirname = "/var/home/wizard/av";
-var AVATAR_DIR = __dirname;
+var PLUGIN_DIR = __dirname;
+var AVATAR_DIR = path.join(os.homedir(), ".config", "opencode");
 var DEFAULT_AVATAR = "avatar.png";
-var USER_AVATAR = path.join(os.homedir(), ".config", "opencode", "avatar.png");
 var THINKING_PROMPT = "thinking hard";
 var AVATAR_PORT = 47291;
 function getToolPrompt(toolName, toolDescription) {
@@ -93,18 +93,16 @@ function promptToFilename(prompt, toolName) {
   return "avatar_" + baseName.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, "_").substring(0, 50) + ".png";
 }
 function getAvatarPath(prompt, toolName) {
+  const defaultAvatar = path.join(AVATAR_DIR, DEFAULT_AVATAR);
   if (!prompt) {
-    if (fs.existsSync(USER_AVATAR)) {
-      return USER_AVATAR;
-    }
-    return path.join(AVATAR_DIR, DEFAULT_AVATAR);
+    return defaultAvatar;
   }
   const filename = promptToFilename(prompt, toolName);
   const avatarPath = path.join(AVATAR_DIR, filename);
   if (fs.existsSync(avatarPath)) {
     return avatarPath;
   }
-  return path.join(AVATAR_DIR, DEFAULT_AVATAR);
+  return defaultAvatar;
 }
 async function startElectron(avatarPath) {
   if (isShuttingDown) {
@@ -120,10 +118,10 @@ async function startElectron(avatarPath) {
     } catch (e) {}
     electronProcess = null;
   }
-  const electronPath = path.join(AVATAR_DIR, "node_modules", ".bin", "electron");
-  const electronEntry = path.join(AVATAR_DIR, "dist", "electron.js");
+  const electronPath = path.join(PLUGIN_DIR, "node_modules", ".bin", "electron");
+  const electronEntry = path.join(PLUGIN_DIR, "dist", "electron.js");
   const child = spawn(electronPath, [electronEntry, "--avatar", avatarPath, "--avatar-port", String(AVATAR_PORT)], {
-    cwd: AVATAR_DIR,
+    cwd: PLUGIN_DIR,
     stdio: ["ignore", "pipe", "pipe"],
     detached: false
   });
@@ -166,9 +164,9 @@ process.on("SIGTERM", () => {
 process.on("uncaughtException", (err) => {
   shutdownElectron();
 });
-async function setAvatarViaHttp(prompt, toolName) {
+async function setAvatarViaHttp(prompt, toolName, force) {
   const avatarPath = getAvatarPath(prompt, toolName);
-  if (avatarPath === currentAvatar) {
+  if (!force && avatarPath === currentAvatar) {
     return;
   }
   currentAvatar = avatarPath;
@@ -303,7 +301,7 @@ var AvatarPlugin = async ({ client }) => {
         isThinking = false;
         isToolActive = false;
         currentRequestId = null;
-        await setAvatarViaHttp();
+        await setAvatarViaHttp(undefined, undefined, true);
       }
     }
   };
