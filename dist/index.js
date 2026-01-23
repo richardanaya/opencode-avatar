@@ -24,6 +24,7 @@ var isThinking = false;
 var isToolActive = false;
 var isShuttingDown = false;
 var idleTriggered = false;
+var currentRequestId = null;
 var heartbeatInterval = null;
 function sendHeartbeat() {
   const req = http.request({
@@ -219,6 +220,8 @@ var AvatarPlugin = async ({ client }) => {
     });
   };
   async function requestAvatarGeneration(prompt, showToasts = true, toolName) {
+    const requestId = `${Date.now()}-${Math.random()}`;
+    currentRequestId = requestId;
     if (showToasts) {
       showInfoToast(`Generating avatar: ${prompt}`);
     }
@@ -241,7 +244,7 @@ var AvatarPlugin = async ({ client }) => {
             if (showToasts) {
               showInfoToast(`Avatar ready: ${prompt}`);
             }
-            if (!idleTriggered || showToasts) {
+            if (currentRequestId === requestId) {
               setAvatarViaHttp(prompt, toolName);
             }
             resolve();
@@ -299,6 +302,7 @@ var AvatarPlugin = async ({ client }) => {
         idleTriggered = true;
         isThinking = false;
         isToolActive = false;
+        currentRequestId = null;
         await setAvatarViaHttp();
       }
     }

@@ -28,6 +28,7 @@ let isThinking = false;
 let isToolActive = false;
 let isShuttingDown = false;
 let idleTriggered = false;
+let currentRequestId: string | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 // Send heartbeat to keep Electron alive
@@ -276,6 +277,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
   };
 
   async function requestAvatarGeneration(prompt: string, showToasts = true, toolName?: string): Promise<void> {
+    const requestId = `${Date.now()}-${Math.random()}`;
+    currentRequestId = requestId;
 
     if (showToasts) {
       showInfoToast(`Generating avatar: ${prompt}`);
@@ -302,8 +305,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
             if (showToasts) {
               showInfoToast(`Avatar ready: ${prompt}`);
             }
-            // Set the avatar with the tool name for proper filename, unless idle was triggered for thinking
-            if (!idleTriggered || showToasts) {
+            // Only set avatar if this request is still the current one
+            if (currentRequestId === requestId) {
               setAvatarViaHttp(prompt, toolName);
             }
             resolve();
@@ -379,6 +382,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         idleTriggered = true;
         isThinking = false;
         isToolActive = false;
+        currentRequestId = null; // Invalidate any ongoing avatar generation
         await setAvatarViaHttp();
       }
     },
