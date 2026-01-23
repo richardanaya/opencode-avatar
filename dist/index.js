@@ -234,10 +234,6 @@ var AvatarPlugin = async ({ client }) => {
         let data = "";
         res.on("data", (chunk) => data += chunk);
         res.on("end", () => {
-          if (!showToasts) {
-            isToolActive = false;
-            isThinking = false;
-          }
           if (res.statusCode === 200) {
             if (showToasts) {
               showInfoToast(`Avatar ready: ${prompt}`);

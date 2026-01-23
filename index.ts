@@ -293,12 +293,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
-          // Reset tool active flag when tool avatar generation completes
-          if (!showToasts) {
-            isToolActive = false;
-            isThinking = false;
-          }
-
           if (res.statusCode === 200) {
             if (showToasts) {
               showInfoToast(`Avatar ready: ${prompt}`);
