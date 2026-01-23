@@ -194,6 +194,8 @@ The output shows:
 - Subsequent loads are instant (cached)
 - Reduce avatar size for faster generation
 
+> **Warning:** If you have a lot of tools (like from an MCP), it will generate a lot of images per tool, which may impact performance.
+
 ## Development
 
 ### Building

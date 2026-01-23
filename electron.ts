@@ -6,10 +6,7 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 require('dotenv').config();
 
-const logFile = path.join(os.homedir(), 'avatar.log');
-function log(msg: string) {
-  fs.appendFileSync(logFile, new Date().toISOString() + ': ' + msg + '\n');
-}
+
 
 function getConfig(): { falKey: string | null; prompt: string | null } {
   try {
@@ -127,11 +124,10 @@ const HTML_CONTENT = `<!DOCTYPE html>
         img.src = canvas.toDataURL('image/png');
       };
 
-       srcImg.onerror = function(e) {
-         console.error('Failed to load image:', e);
-         log('Renderer: Avatar load failed, using fallback transparent image');
-         img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-       };
+        srcImg.onerror = function(e) {
+          console.error('Failed to load image:', e);
+          img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+        };
     }
 
     ipcRenderer.on('set-avatar', (event, avatarDataUrl) => {
@@ -337,7 +333,7 @@ function startAvatarServer() {
       req.on('end', () => {
         try {
           const { avatarPath } = JSON.parse(body);
-          log('Set-avatar request with path: ' + avatarPath);
+
           if (mainWindow && avatarPath) {
             const imageBuffer = fs.readFileSync(avatarPath);
             const base64 = imageBuffer.toString('base64');
@@ -437,7 +433,6 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', () => {
     if (mainWindow) {
-      log('Window finished loading');
       const avatarPath = getAvatarPath();
       try {
         const imageBuffer = fs.readFileSync(avatarPath);
@@ -501,7 +496,6 @@ function createTray() {
 }
 
 function processTrayIcon(pngPath: string) {
-  log('Processing tray icon from: ' + pngPath);
   let trayIcon = nativeImage.createFromPath(pngPath);
   if (!trayIcon.isEmpty()) {
     const size = trayIcon.getSize();
@@ -523,10 +517,9 @@ function processTrayIcon(pngPath: string) {
       }
     }
     trayIcon = nativeImage.createFromBitmap(bitmap, size);
-    log('Tray icon processed successfully');
+
    } else {
-     // Fallback to default icon
-     log('Tray icon is empty, using fallback');
+      // Fallback to default icon
      trayIcon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
    }
   return trayIcon;

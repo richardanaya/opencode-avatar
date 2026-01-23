@@ -405,11 +405,6 @@ import * as fs from "fs";
 import * as os from "os";
 import { fileURLToPath } from "url";
 require_main().config();
-var logFile = path.join(os.homedir(), "avatar.log");
-function log(msg) {
-  fs.appendFileSync(logFile, new Date().toISOString() + ": " + msg + `
-`);
-}
 function getConfig() {
   try {
     const configPath = path.join(os.homedir(), ".config", "opencode", "opencode-avatar.json");
@@ -517,11 +512,10 @@ var HTML_CONTENT = `<!DOCTYPE html>
         img.src = canvas.toDataURL('image/png');
       };
 
-       srcImg.onerror = function(e) {
-         console.error('Failed to load image:', e);
-         log('Renderer: Avatar load failed, using fallback transparent image');
-         img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-       };
+        srcImg.onerror = function(e) {
+          console.error('Failed to load image:', e);
+          img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+        };
     }
 
     ipcRenderer.on('set-avatar', (event, avatarDataUrl) => {
@@ -690,7 +684,6 @@ function startAvatarServer() {
       req.on("end", () => {
         try {
           const { avatarPath } = JSON.parse(body);
-          log("Set-avatar request with path: " + avatarPath);
           if (mainWindow && avatarPath) {
             const imageBuffer = fs.readFileSync(avatarPath);
             const base64 = imageBuffer.toString("base64");
@@ -780,7 +773,6 @@ function createWindow() {
   mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(HTML_CONTENT)}`);
   mainWindow.webContents.on("did-finish-load", () => {
     if (mainWindow) {
-      log("Window finished loading");
       const avatarPath = getAvatarPath();
       try {
         const imageBuffer = fs.readFileSync(avatarPath);
@@ -834,7 +826,6 @@ function createTray() {
   tray.on("click", () => mainWindow?.isVisible() ? mainWindow.hide() : mainWindow?.show());
 }
 function processTrayIcon(pngPath) {
-  log("Processing tray icon from: " + pngPath);
   let trayIcon = nativeImage.createFromPath(pngPath);
   if (!trayIcon.isEmpty()) {
     const size = trayIcon.getSize();
@@ -852,9 +843,7 @@ function processTrayIcon(pngPath) {
       }
     }
     trayIcon = nativeImage.createFromBitmap(bitmap, size);
-    log("Tray icon processed successfully");
   } else {
-    log("Tray icon is empty, using fallback");
     trayIcon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
   }
   return trayIcon;
