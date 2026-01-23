@@ -405,17 +405,20 @@ import * as fs from "fs";
 import * as os from "os";
 import { fileURLToPath } from "url";
 require_main().config();
+var logFile = path.join(os.homedir(), "avatar.log");
+function log(msg) {
+  fs.appendFileSync(logFile, new Date().toISOString() + ": " + msg + `
+`);
+}
 function getConfig() {
   try {
     const configPath = path.join(os.homedir(), ".config", "opencode", "opencode-avatar.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     if (!config.falKey) {
-      console.warn("Warning: falKey not found in config file. Avatar generation will not work. Please set falKey in ~/.config/opencode/opencode-avatar.json");
       return { falKey: null, prompt: null };
     }
     return { falKey: config.falKey, prompt: config.prompt || null };
   } catch (error) {
-    console.warn(`Warning: Failed to read config file: ${error.message}. Avatar generation will not work. Please ensure ~/.config/opencode/opencode-avatar.json exists and contains falKey.`);
     return { falKey: null, prompt: null };
   }
 }
@@ -490,42 +493,39 @@ var HTML_CONTENT = `<!DOCTYPE html>
 
         ctx.drawImage(srcImg, 0, 0);
 
-        const topLeftPixel = ctx.getImageData(0, 0, 1, 1).data;
-        const chromaR = topLeftPixel[0];
-        const chromaG = topLeftPixel[1];
-        const chromaB = topLeftPixel[2];
-
-
+        // Chroma keying: make background transparent
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
+        const chromaR = data[0]; // first pixel R
+        const chromaG = data[1]; // first pixel G
+        const chromaB = data[2]; // first pixel B
         const tolerance = 30;
 
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
-
-          if (
-            Math.abs(r - chromaR) <= tolerance &&
-            Math.abs(g - chromaG) <= tolerance &&
-            Math.abs(b - chromaB) <= tolerance
-          ) {
-            data[i + 3] = 0;
+          if (Math.abs(r - chromaR) <= tolerance &&
+              Math.abs(g - chromaG) <= tolerance &&
+              Math.abs(b - chromaB) <= tolerance) {
+            data[i + 3] = 0; // set alpha to 0
           }
         }
 
         ctx.putImageData(imageData, 0, 0);
+
         img.src = canvas.toDataURL('image/png');
       };
 
-      srcImg.onerror = function(e) {
-        console.error('Failed to load image:', e);
-        img.src = 'avatar.svg';
-      };
+       srcImg.onerror = function(e) {
+         console.error('Failed to load image:', e);
+         log('Renderer: Avatar load failed, using fallback transparent image');
+         img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+       };
     }
 
-    ipcRenderer.on('set-avatar', (event, avatarPath) => {
-      loadAvatar('file://' + avatarPath);
+    ipcRenderer.on('set-avatar', (event, avatarDataUrl) => {
+      loadAvatar(avatarDataUrl);
     });
 
     // Fallback: load default avatar if no IPC message received
@@ -690,16 +690,17 @@ function startAvatarServer() {
       req.on("end", () => {
         try {
           const { avatarPath } = JSON.parse(body);
+          log("Set-avatar request with path: " + avatarPath);
           if (mainWindow && avatarPath) {
-            mainWindow.webContents.send("set-avatar", avatarPath);
+            const imageBuffer = fs.readFileSync(avatarPath);
+            const base64 = imageBuffer.toString("base64");
+            const dataUrl = `data:image/png;base64,${base64}`;
+            mainWindow.webContents.send("set-avatar", dataUrl);
             updateTrayIcon(avatarPath);
           }
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: true }));
-        } catch (e) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
-        }
+        } catch (e) {}
       });
     } else if (req.method === "POST" && req.url === "/generate-avatar") {
       let body = "";
@@ -716,7 +717,10 @@ function startAvatarServer() {
           }
           const avatarPath = await generateAvatarForPrompt(prompt);
           if (mainWindow) {
-            mainWindow.webContents.send("set-avatar", avatarPath);
+            const imageBuffer = fs.readFileSync(avatarPath);
+            const base64 = imageBuffer.toString("base64");
+            const dataUrl = `data:image/png;base64,${base64}`;
+            mainWindow.webContents.send("set-avatar", dataUrl);
             updateTrayIcon(avatarPath);
           }
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -776,9 +780,13 @@ function createWindow() {
   mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(HTML_CONTENT)}`);
   mainWindow.webContents.on("did-finish-load", () => {
     if (mainWindow) {
+      log("Window finished loading");
       const avatarPath = getAvatarPath();
       try {
-        mainWindow.webContents.send("set-avatar", avatarPath);
+        const imageBuffer = fs.readFileSync(avatarPath);
+        const base64 = imageBuffer.toString("base64");
+        const dataUrl = `data:image/png;base64,${base64}`;
+        mainWindow.webContents.send("set-avatar", dataUrl);
         updateTrayIcon(avatarPath);
         setTimeout(() => {
           if (mainWindow && !mainWindow.isVisible()) {
@@ -786,9 +794,7 @@ function createWindow() {
             mainWindow.setAlwaysOnTop(true, "screen-saver");
           }
         }, 100);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-      }
+      } catch (error) {}
     }
   });
   mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription) => {});
@@ -828,6 +834,7 @@ function createTray() {
   tray.on("click", () => mainWindow?.isVisible() ? mainWindow.hide() : mainWindow?.show());
 }
 function processTrayIcon(pngPath) {
+  log("Processing tray icon from: " + pngPath);
   let trayIcon = nativeImage.createFromPath(pngPath);
   if (!trayIcon.isEmpty()) {
     const size = trayIcon.getSize();
@@ -845,8 +852,10 @@ function processTrayIcon(pngPath) {
       }
     }
     trayIcon = nativeImage.createFromBitmap(bitmap, size);
+    log("Tray icon processed successfully");
   } else {
-    trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, "avatar.svg"));
+    log("Tray icon is empty, using fallback");
+    trayIcon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
   }
   return trayIcon;
 }
