@@ -100,42 +100,17 @@ const HTML_CONTENT = `<!DOCTYPE html>
 
         ctx.drawImage(srcImg, 0, 0);
 
-        const topLeftPixel = ctx.getImageData(0, 0, 1, 1).data;
-        const chromaR = topLeftPixel[0];
-        const chromaG = topLeftPixel[1];
-        const chromaB = topLeftPixel[2];
-
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        const tolerance = 30;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-
-          if (
-            Math.abs(r - chromaR) <= tolerance &&
-            Math.abs(g - chromaG) <= tolerance &&
-            Math.abs(b - chromaB) <= tolerance
-          ) {
-            data[i + 3] = 0;
-          }
-        }
-
-        ctx.putImageData(imageData, 0, 0);
         img.src = canvas.toDataURL('image/png');
       };
 
       srcImg.onerror = function(e) {
         console.error('Failed to load image:', e);
-        img.src = 'avatar.svg';
+        img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
       };
     }
 
-    ipcRenderer.on('set-avatar', (event, avatarPath) => {
-      loadAvatar('file://' + avatarPath);
+    ipcRenderer.on('set-avatar', (event, avatarDataUrl) => {
+      loadAvatar(avatarDataUrl);
     });
 
     // Fallback: load default avatar if no IPC message received
@@ -338,7 +313,10 @@ function startAvatarServer() {
         try {
           const { avatarPath } = JSON.parse(body);
           if (mainWindow && avatarPath) {
-            mainWindow.webContents.send('set-avatar', avatarPath);
+            const imageBuffer = fs.readFileSync(avatarPath);
+            const base64 = imageBuffer.toString('base64');
+            const dataUrl = `data:image/png;base64,${base64}`;
+            mainWindow.webContents.send('set-avatar', dataUrl);
             updateTrayIcon(avatarPath);
           }
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -361,7 +339,10 @@ function startAvatarServer() {
           }
           const avatarPath = await generateAvatarForPrompt(prompt);
           if (mainWindow) {
-            mainWindow.webContents.send('set-avatar', avatarPath);
+            const imageBuffer = fs.readFileSync(avatarPath);
+            const base64 = imageBuffer.toString('base64');
+            const dataUrl = `data:image/png;base64,${base64}`;
+            mainWindow.webContents.send('set-avatar', dataUrl);
             updateTrayIcon(avatarPath);
           }
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -434,7 +415,11 @@ function createWindow() {
     if (mainWindow) {
       const avatarPath = getAvatarPath();
       try {
-        mainWindow.webContents.send('set-avatar', avatarPath);
+        // Convert to base64 data URL since we're loading HTML from a data URL
+        const imageBuffer = fs.readFileSync(avatarPath);
+        const base64 = imageBuffer.toString('base64');
+        const dataUrl = `data:image/png;base64,${base64}`;
+        mainWindow.webContents.send('set-avatar', dataUrl);
         updateTrayIcon(avatarPath);
 
         // Show window after avatar is set, without stealing focus
@@ -515,9 +500,10 @@ function processTrayIcon(pngPath: string) {
       }
     }
     trayIcon = nativeImage.createFromBitmap(bitmap, size);
-  } else {
-    trayIcon = nativeImage.createFromPath(path.join(AVATAR_DIR, 'avatar.svg'));
-  }
+   } else {
+     // Fallback to default icon
+     trayIcon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+   }
   return trayIcon;
 }
 
