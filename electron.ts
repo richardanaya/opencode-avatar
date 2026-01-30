@@ -286,7 +286,7 @@ async function generateAvatarForPrompt(prompt: string): Promise<string> {
   const sourceAvatar = path.join(AVATAR_DIR, 'avatar.png');
   const uploadedUrl = await uploadFile(sourceAvatar, config.falKey!);
 
-  let fullPrompt = `make a character variant: ${prompt}, themed for Linux bash commands or MCP server services. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
+  let fullPrompt = `make a character variant: ${prompt}, the references for the character variant will be of command line utility tools. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
   if (config.prompt) {
     fullPrompt += ` ${config.prompt}`;
   }
