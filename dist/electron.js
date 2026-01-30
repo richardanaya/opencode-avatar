@@ -537,8 +537,10 @@ var httpServer = null;
 var ongoingGenerations = new Map;
 var lastHeartbeat = Date.now();
 var HEARTBEAT_TIMEOUT = 1000;
-function promptToFilename(prompt) {
-  return "avatar_" + prompt.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, "_").substring(0, 50) + ".png";
+function promptToFilename(prompt, agentBase) {
+  const base = agentBase || "avatar";
+  const action = prompt.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, "_").substring(0, 50);
+  return `${base}-${action}.png`;
 }
 function getAvatarPort() {
   const args = process.argv;
@@ -620,13 +622,14 @@ async function downloadImage(url, outputPath) {
   const buffer = Buffer.from(await response.arrayBuffer());
   fs.writeFileSync(outputPath, buffer);
 }
-async function generateAvatarForPrompt(prompt) {
+async function generateAvatarForPrompt(prompt, agentBase) {
   const config = getConfig();
+  const base = agentBase || "avatar";
   if (!config.falKey) {
     console.warn("falKey is not set. Cannot generate avatar. Using default avatar.");
-    return path.join(AVATAR_DIR, "avatar.png");
+    return path.join(AVATAR_DIR, `${base}.png`);
   }
-  const cachedFilename = promptToFilename(prompt);
+  const cachedFilename = promptToFilename(prompt, base);
   const cachedPath = path.join(AVATAR_DIR, cachedFilename);
   if (fs.existsSync(cachedPath)) {
     return cachedPath;
@@ -640,7 +643,10 @@ async function generateAvatarForPrompt(prompt) {
       if (fs.existsSync(cachedPath)) {
         return;
       }
-      const sourceAvatar = path.join(AVATAR_DIR, "avatar.png");
+      let sourceAvatar = path.join(AVATAR_DIR, `${base}.png`);
+      if (!fs.existsSync(sourceAvatar)) {
+        sourceAvatar = path.join(AVATAR_DIR, "avatar.png");
+      }
       const uploadedUrl = await uploadFile(sourceAvatar, config.falKey);
       let fullPrompt = `make a character variant: ${prompt}. The action should be literal - the character should actually be performing the action (writing means writing, typing means typing, etc.), not shown as some abstract Terminal visualization or text output. Maintain the character's original essence and physicality. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
       if (config.prompt) {
@@ -702,13 +708,13 @@ function startAvatarServer() {
       });
       req.on("end", async () => {
         try {
-          const { prompt } = JSON.parse(body);
+          const { prompt, agentBase } = JSON.parse(body);
           if (!prompt) {
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Missing prompt" }));
             return;
           }
-          const avatarPath = await generateAvatarForPrompt(prompt);
+          const avatarPath = await generateAvatarForPrompt(prompt, agentBase);
           if (mainWindow) {
             const imageBuffer = fs.readFileSync(avatarPath);
             const base64 = imageBuffer.toString("base64");

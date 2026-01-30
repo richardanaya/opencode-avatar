@@ -151,12 +151,15 @@ let ongoingGenerations = new Map<string, Promise<void>>();
 let lastHeartbeat = Date.now();
 const HEARTBEAT_TIMEOUT = 1000; // 1 second without heartbeat = shutdown
 
-function promptToFilename(prompt: string): string {
-  return 'avatar_' + prompt
+function promptToFilename(prompt: string, agentBase?: string): string {
+  const base = agentBase || 'avatar';
+  const action = prompt
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, '_')
-    .substring(0, 50) + '.png';
+    .substring(0, 50);
+  // Format: avatar-action.png or avatar-agent_name-action.png
+  return `${base}-${action}.png`;
 }
 
 function getAvatarPort(): number {
@@ -253,14 +256,16 @@ async function downloadImage(url: string, outputPath: string): Promise<void> {
   fs.writeFileSync(outputPath, buffer);
 }
 
-async function generateAvatarForPrompt(prompt: string): Promise<string> {
+async function generateAvatarForPrompt(prompt: string, agentBase?: string): Promise<string> {
   const config = getConfig();
+  const base = agentBase || 'avatar';
+  
   if (!config.falKey) {
     console.warn('falKey is not set. Cannot generate avatar. Using default avatar.');
-    return path.join(AVATAR_DIR, 'avatar.png');
+    return path.join(AVATAR_DIR, `${base}.png`);
   }
 
-  const cachedFilename = promptToFilename(prompt);
+  const cachedFilename = promptToFilename(prompt, base);
   const cachedPath = path.join(AVATAR_DIR, cachedFilename);
 
   // Check file cache first
@@ -282,15 +287,18 @@ async function generateAvatarForPrompt(prompt: string): Promise<string> {
         return;
       }
 
+      // Use agent-specific source avatar if it exists, otherwise fall back to default
+      let sourceAvatar = path.join(AVATAR_DIR, `${base}.png`);
+      if (!fs.existsSync(sourceAvatar)) {
+        sourceAvatar = path.join(AVATAR_DIR, 'avatar.png');
+      }
+      const uploadedUrl = await uploadFile(sourceAvatar, config.falKey!);
 
-  const sourceAvatar = path.join(AVATAR_DIR, 'avatar.png');
-  const uploadedUrl = await uploadFile(sourceAvatar, config.falKey!);
-
-  let fullPrompt = `make a character variant: ${prompt}. The action should be literal - the character should actually be performing the action (writing means writing, typing means typing, etc.), not shown as some abstract Terminal visualization or text output. Maintain the character's original essence and physicality. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
-  if (config.prompt) {
-    fullPrompt += ` ${config.prompt}`;
-  }
-  const result = await generateAvatarImage(uploadedUrl, fullPrompt, config.falKey!);
+      let fullPrompt = `make a character variant: ${prompt}. The action should be literal - the character should actually be performing the action (writing means writing, typing means typing, etc.), not shown as some abstract Terminal visualization or text output. Maintain the character's original essence and physicality. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
+      if (config.prompt) {
+        fullPrompt += ` ${config.prompt}`;
+      }
+      const result = await generateAvatarImage(uploadedUrl, fullPrompt, config.falKey!);
 
       const outputUrl = result.images?.[0]?.url || result.image?.url || result.url;
       if (!outputUrl) {
@@ -351,13 +359,13 @@ function startAvatarServer() {
       req.on('data', chunk => { body += chunk; });
       req.on('end', async () => {
         try {
-          const { prompt } = JSON.parse(body);
+          const { prompt, agentBase } = JSON.parse(body);
           if (!prompt) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Missing prompt' }));
             return;
           }
-          const avatarPath = await generateAvatarForPrompt(prompt);
+          const avatarPath = await generateAvatarForPrompt(prompt, agentBase);
           if (mainWindow) {
             const imageBuffer = fs.readFileSync(avatarPath);
             const base64 = imageBuffer.toString('base64');

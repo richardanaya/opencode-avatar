@@ -11,6 +11,23 @@ const DEFAULT_AVATAR = "avatar.png";
 const THINKING_PROMPT = "thinking hard";
 const AVATAR_PORT = 47291;
 
+// Normalize agent name: lowercase and spaces to underscores
+function normalizeAgentName(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '_');
+}
+
+// Get the avatar base for a given agent name
+// Returns 'avatar-<agent_name>' if avatar-<agent_name>.png exists, otherwise 'avatar'
+function getAgentAvatarBase(agentName?: string | null): string {
+  if (!agentName) return 'avatar';
+  const normalized = normalizeAgentName(agentName);
+  const agentAvatarPath = path.join(AVATAR_DIR, `avatar-${normalized}.png`);
+  if (fs.existsSync(agentAvatarPath)) {
+    return `avatar-${normalized}`;
+  }
+  return 'avatar';
+}
+
 // Function to create descriptive prompt from tool info
 function getToolPrompt(toolName: string, toolDescription?: string): string {
   if (toolDescription) {
@@ -30,6 +47,10 @@ let isShuttingDown = false;
 let idleTriggered = false;
 let currentRequestId: string | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+// Agent tracking - detected from message events
+let currentAgentName: string | null = null;
+let currentAgentBase: string = 'avatar'; // Will be updated when agent is detected
 
 // Send heartbeat to keep Electron alive
 function sendHeartbeat(): void {
@@ -100,27 +121,44 @@ async function sendShutdownCommand(): Promise<boolean> {
   });
 }
 
-function promptToFilename(prompt: string, toolName?: string): string {
+function promptToFilename(prompt: string, toolName?: string, agentBase?: string): string {
   // Use tool name for filename if available (more predictable)
+  const base = agentBase || 'avatar';
   const baseName = toolName || prompt;
-  return 'avatar_' + baseName
+  const action = baseName
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, '_')
-    .substring(0, 50) + '.png';
+    .substring(0, 50);
+  // Format: avatar-action.png or avatar-agent_name-action.png
+  return `${base}-${action}.png`;
 }
 
-function getAvatarPath(prompt?: string, toolName?: string): string {
-  const defaultAvatar = path.join(AVATAR_DIR, DEFAULT_AVATAR);
+function getAvatarPath(prompt?: string, toolName?: string, agentBase?: string): string {
+  // Use agent-specific base avatar if available
+  const base = agentBase || currentAgentBase;
+  const defaultAvatar = path.join(AVATAR_DIR, `${base}.png`);
+  
+  // If no prompt, return the base avatar (agent-specific or default)
   if (!prompt) {
+    // Fall back to standard avatar.png if agent-specific base doesn't exist
+    if (!fs.existsSync(defaultAvatar)) {
+      return path.join(AVATAR_DIR, DEFAULT_AVATAR);
+    }
     return defaultAvatar;
   }
-  const filename = promptToFilename(prompt, toolName);
+  
+  const filename = promptToFilename(prompt, toolName, base);
   const avatarPath = path.join(AVATAR_DIR, filename);
   if (fs.existsSync(avatarPath)) {
     return avatarPath;
   }
-  return defaultAvatar;
+  
+  // Fall back to base avatar, then standard default
+  if (fs.existsSync(defaultAvatar)) {
+    return defaultAvatar;
+  }
+  return path.join(AVATAR_DIR, DEFAULT_AVATAR);
 }
 
 async function startElectron(avatarPath: string): Promise<void> {
@@ -316,7 +354,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         }
         reject(err);
       });
-      req.write(JSON.stringify({ prompt }));
+      // Pass agentBase to electron for generation
+      req.write(JSON.stringify({ prompt, agentBase: currentAgentBase }));
       req.end();
     });
   }
@@ -370,6 +409,18 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
     },
 
     event: async ({ event }) => {
+      // Detect agent from user messages
+      if (event.type === "message.updated") {
+        const message = (event as any).properties?.info;
+        if (message?.role === "user" && message?.agent) {
+          const agentName = message.agent as string;
+          if (currentAgentName !== agentName) {
+            currentAgentName = agentName;
+            currentAgentBase = getAgentAvatarBase(currentAgentName);
+          }
+        }
+      }
+      
       if (event.type === "session.idle" && (isThinking || isToolActive)) {
         idleTriggered = true;
         isThinking = false;

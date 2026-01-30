@@ -11,6 +11,19 @@ var AVATAR_DIR = path.join(os.homedir(), ".config", "opencode");
 var DEFAULT_AVATAR = "avatar.png";
 var THINKING_PROMPT = "thinking hard";
 var AVATAR_PORT = 47291;
+function normalizeAgentName(name) {
+  return name.toLowerCase().replace(/\s+/g, "_");
+}
+function getAgentAvatarBase(agentName) {
+  if (!agentName)
+    return "avatar";
+  const normalized = normalizeAgentName(agentName);
+  const agentAvatarPath = path.join(AVATAR_DIR, `avatar-${normalized}.png`);
+  if (fs.existsSync(agentAvatarPath)) {
+    return `avatar-${normalized}`;
+  }
+  return "avatar";
+}
 function getToolPrompt(toolName, toolDescription) {
   if (toolDescription) {
     const shortDesc = toolDescription.split(".")[0].substring(0, 50);
@@ -26,6 +39,8 @@ var isShuttingDown = false;
 var idleTriggered = false;
 var currentRequestId = null;
 var heartbeatInterval = null;
+var currentAgentName = null;
+var currentAgentBase = "avatar";
 function sendHeartbeat() {
   const req = http.request({
     hostname: "localhost",
@@ -88,21 +103,30 @@ async function sendShutdownCommand() {
     req.end();
   });
 }
-function promptToFilename(prompt, toolName) {
+function promptToFilename(prompt, toolName, agentBase) {
+  const base = agentBase || "avatar";
   const baseName = toolName || prompt;
-  return "avatar_" + baseName.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, "_").substring(0, 50) + ".png";
+  const action = baseName.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, "_").substring(0, 50);
+  return `${base}-${action}.png`;
 }
-function getAvatarPath(prompt, toolName) {
-  const defaultAvatar = path.join(AVATAR_DIR, DEFAULT_AVATAR);
+function getAvatarPath(prompt, toolName, agentBase) {
+  const base = agentBase || currentAgentBase;
+  const defaultAvatar = path.join(AVATAR_DIR, `${base}.png`);
   if (!prompt) {
+    if (!fs.existsSync(defaultAvatar)) {
+      return path.join(AVATAR_DIR, DEFAULT_AVATAR);
+    }
     return defaultAvatar;
   }
-  const filename = promptToFilename(prompt, toolName);
+  const filename = promptToFilename(prompt, toolName, base);
   const avatarPath = path.join(AVATAR_DIR, filename);
   if (fs.existsSync(avatarPath)) {
     return avatarPath;
   }
-  return defaultAvatar;
+  if (fs.existsSync(defaultAvatar)) {
+    return defaultAvatar;
+  }
+  return path.join(AVATAR_DIR, DEFAULT_AVATAR);
 }
 async function startElectron(avatarPath) {
   if (isShuttingDown) {
@@ -256,7 +280,7 @@ var AvatarPlugin = async ({ client }) => {
         }
         reject(err);
       });
-      req.write(JSON.stringify({ prompt }));
+      req.write(JSON.stringify({ prompt, agentBase: currentAgentBase }));
       req.end();
     });
   }
@@ -292,6 +316,16 @@ var AvatarPlugin = async ({ client }) => {
       });
     },
     event: async ({ event }) => {
+      if (event.type === "message.updated") {
+        const message = event.properties?.info;
+        if (message?.role === "user" && message?.agent) {
+          const agentName = message.agent;
+          if (currentAgentName !== agentName) {
+            currentAgentName = agentName;
+            currentAgentBase = getAgentAvatarBase(currentAgentName);
+          }
+        }
+      }
       if (event.type === "session.idle" && (isThinking || isToolActive)) {
         idleTriggered = true;
         isThinking = false;
