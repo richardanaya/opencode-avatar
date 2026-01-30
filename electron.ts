@@ -23,7 +23,7 @@ function getConfig(): { falKey: string | null; prompt: string | null } {
 
 const FAL_CDN_URL = 'https://v3.fal.media';
 const FAL_REST_URL = 'https://rest.alpha.fal.ai';
-const FAL_NANO_BANANA_URL = 'https://fal.run/fal-ai/nano-banana-pro/edit';
+const FAL_GROK_IMAGE_URL = 'https://fal.run/xai/grok-imagine-image/edit';
 
 // Get directory path reliably for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -224,7 +224,7 @@ async function uploadFile(filePath: string, falKey: string): Promise<string> {
 }
 
 async function generateAvatarImage(imageUrl: string, prompt: string, falKey: string): Promise<{ images?: { url: string }[]; image?: { url: string }; url?: string }> {
-  const response = await fetch(FAL_NANO_BANANA_URL, {
+  const response = await fetch(FAL_GROK_IMAGE_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Key ${falKey}`,
@@ -232,7 +232,7 @@ async function generateAvatarImage(imageUrl: string, prompt: string, falKey: str
     },
     body: JSON.stringify({
       prompt: prompt,
-      image_urls: [imageUrl]
+      image_url: imageUrl
     })
   });
 
@@ -286,7 +286,7 @@ async function generateAvatarForPrompt(prompt: string): Promise<string> {
   const sourceAvatar = path.join(AVATAR_DIR, 'avatar.png');
   const uploadedUrl = await uploadFile(sourceAvatar, config.falKey!);
 
-  let fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
+  let fullPrompt = `make a character variant: ${prompt}, themed for Linux bash commands or MCP server services. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
   if (config.prompt) {
     fullPrompt += ` ${config.prompt}`;
   }
