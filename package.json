@@ -1,6 +1,6 @@
 {
   "name": "opencode-avatar",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "Dynamic desktop avatar plugin for OpenCode that reacts to your coding activities",
   "type": "module",
   "main": "./dist/index.js",

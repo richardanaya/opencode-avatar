@@ -642,7 +642,7 @@ async function generateAvatarForPrompt(prompt) {
       }
       const sourceAvatar = path.join(AVATAR_DIR, "avatar.png");
       const uploadedUrl = await uploadFile(sourceAvatar, config.falKey);
-      let fullPrompt = `make a character variant: ${prompt}, themed for Linux bash commands or MCP server services. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
+      let fullPrompt = `make a character variant: ${prompt}. The action should be literal - the character should actually be performing the action (writing means writing, typing means typing, etc.), not shown as some abstract Terminal visualization or text output. Maintain the character's original essence and physicality. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
       if (config.prompt) {
         fullPrompt += ` ${config.prompt}`;
       }
