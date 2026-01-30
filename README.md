@@ -15,6 +15,8 @@ A dynamic desktop avatar plugin for OpenCode that displays animated character re
 - **Toast Notifications**: Shows progress for avatar generation
 - **Customizable Prompts**: Optional prompt configuration for personalized avatar styles
 
+> **Warning:** If you use a lot of varied tools (like from an MCP), it will generate a lot of images per tool usage, which may cost alot with Nano Banana Pro. Character images for a tool are only generated as used.
+
 ## Installation
 
 Then add to your OpenCode config:
@@ -193,8 +195,6 @@ The output shows:
 - First avatar generation takes ~10-30 seconds
 - Subsequent loads are instant (cached)
 - Reduce avatar size for faster generation
-
-> **Warning:** If you have a lot of tools (like from an MCP), it will generate a lot of images per tool, which may impact performance.
 
 ## Development
 
