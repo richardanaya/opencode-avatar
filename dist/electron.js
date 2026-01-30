@@ -419,7 +419,7 @@ function getConfig() {
 }
 var FAL_CDN_URL = "https://v3.fal.media";
 var FAL_REST_URL = "https://rest.alpha.fal.ai";
-var FAL_NANO_BANANA_URL = "https://fal.run/fal-ai/nano-banana-pro/edit";
+var FAL_GROK_IMAGE_URL = "https://fal.run/xai/grok-imagine-image/edit";
 var __filename2 = fileURLToPath(import.meta.url);
 var __dirnameResolved = path.dirname(__filename2);
 var AVATAR_DIR = path.join(os.homedir(), ".config", "opencode");
@@ -595,7 +595,7 @@ async function uploadFile(filePath, falKey) {
   return result.access_url || result.url || "";
 }
 async function generateAvatarImage(imageUrl, prompt, falKey) {
-  const response = await fetch(FAL_NANO_BANANA_URL, {
+  const response = await fetch(FAL_GROK_IMAGE_URL, {
     method: "POST",
     headers: {
       Authorization: `Key ${falKey}`,
@@ -603,7 +603,7 @@ async function generateAvatarImage(imageUrl, prompt, falKey) {
     },
     body: JSON.stringify({
       prompt,
-      image_urls: [imageUrl]
+      image_url: imageUrl
     })
   });
   if (!response.ok) {
@@ -642,7 +642,7 @@ async function generateAvatarForPrompt(prompt) {
       }
       const sourceAvatar = path.join(AVATAR_DIR, "avatar.png");
       const uploadedUrl = await uploadFile(sourceAvatar, config.falKey);
-      let fullPrompt = `make a character variant: ${prompt}. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
+      let fullPrompt = `make a character variant: ${prompt}, themed for Linux bash commands or MCP server services. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
       if (config.prompt) {
         fullPrompt += ` ${config.prompt}`;
       }

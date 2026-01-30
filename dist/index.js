@@ -5,7 +5,7 @@ import * as path from "path";
 import * as http from "http";
 import * as fs from "fs";
 import * as os from "os";
-var __dirname = "/var/home/wizard/av";
+var __dirname = "/var/home/wizard/opencode-avatar";
 var PLUGIN_DIR = __dirname;
 var AVATAR_DIR = path.join(os.homedir(), ".config", "opencode");
 var DEFAULT_AVATAR = "avatar.png";
