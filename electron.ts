@@ -294,7 +294,7 @@ async function generateAvatarForPrompt(prompt: string, agentBase?: string): Prom
       }
       const uploadedUrl = await uploadFile(sourceAvatar, config.falKey!);
 
-      let fullPrompt = `make a character variant: ${prompt}. The action should be literal - the character should actually be performing the action (writing means writing, typing means typing, etc.), not shown as some abstract Terminal visualization or text output. Maintain the character's original essence and physicality. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject.`;
+      let fullPrompt = `make a character variant: ${prompt}. The action should be literal - the character should actually be performing the action (writing means writing, typing means typing, etc.), not shown as some abstract Terminal visualization or text output. Maintain the character's original essence and physicality. Keep the background as a solid green screen color. Do not let the green screen color appear in reflections or on the subject. Shadows must not be green.`;
       if (config.prompt) {
         fullPrompt += ` ${config.prompt}`;
       }

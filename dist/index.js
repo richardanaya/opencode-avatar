@@ -311,6 +311,10 @@ var AvatarPlugin = async ({ client }) => {
       const prompt = getToolPrompt(toolName, toolDescription);
       idleTriggered = false;
       isToolActive = true;
+      const avatarPath = getAvatarPath(prompt, toolName);
+      if (fs.existsSync(avatarPath)) {
+        setAvatarViaHttp(prompt, toolName, true);
+      }
       requestAvatarGeneration(prompt, false, toolName).catch((err) => {
         isToolActive = false;
       });

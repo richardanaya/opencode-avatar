@@ -402,7 +402,11 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       idleTriggered = false;
       isToolActive = true;
 
-      // Don't await - fire and forget so we don't block tool execution
+      const avatarPath = getAvatarPath(prompt, toolName);
+      if (fs.existsSync(avatarPath)) {
+        setAvatarViaHttp(prompt, toolName, true);
+      }
+
       requestAvatarGeneration(prompt, false, toolName).catch((err) => {
         isToolActive = false;
       });
