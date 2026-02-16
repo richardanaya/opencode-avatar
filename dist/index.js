@@ -12691,6 +12691,7 @@ var THINKING_PROMPT = "thinking hard";
 var AVATAR_PORT = 47291;
 var dbFile = null;
 var db = null;
+var sessionToAvatarMap = new Map;
 async function getDbFile(client) {
   if (!dbFile) {
     const result = await client.path.get();
@@ -12720,6 +12721,8 @@ async function getDatabase(client) {
   return db;
 }
 async function registerAvatarName(client, name, sessionId) {
+  const normalizedName = name.toLowerCase();
+  sessionToAvatarMap.set(sessionId, normalizedName);
   const database = await getDatabase(client);
   const stmt = database.prepare(`
     INSERT INTO latest_tool_usage (name, session_id, tool_name, timestamp)
@@ -12728,9 +12731,16 @@ async function registerAvatarName(client, name, sessionId) {
       tool_name = excluded.tool_name,
       timestamp = excluded.timestamp
   `);
-  stmt.run(name.toLowerCase(), sessionId, "registered", Date.now());
+  stmt.run(normalizedName, normalizedName, "registered", Date.now());
+}
+function getRegisteredAvatarName(sessionId) {
+  return sessionToAvatarMap.get(sessionId) || null;
 }
 async function updateToolUsage(client, name, sessionId, toolName) {
+  const registeredName = getRegisteredAvatarName(sessionId);
+  if (!registeredName) {
+    return;
+  }
   const database = await getDatabase(client);
   const stmt = database.prepare(`
     INSERT INTO latest_tool_usage (name, session_id, tool_name, timestamp)
@@ -12739,7 +12749,7 @@ async function updateToolUsage(client, name, sessionId, toolName) {
       tool_name = excluded.tool_name,
       timestamp = excluded.timestamp
   `);
-  stmt.run(name.toLowerCase(), sessionId, toolName, Date.now());
+  stmt.run(registeredName, registeredName, toolName, Date.now());
 }
 function normalizeAgentName(name) {
   return name.toLowerCase().replace(/\s+/g, "_");
@@ -13058,8 +13068,7 @@ var AvatarPlugin = async ({ client }) => {
         idleTriggered = false;
         isThinking = true;
         const sessionId = input.sessionID || output.sessionID || currentAgentName || "unknown-session";
-        const trackingName = currentAgentName || sessionId;
-        updateToolUsage(client, trackingName, sessionId, "thinking").catch((err) => {
+        updateToolUsage(client, sessionId, sessionId, "thinking").catch((err) => {
           console.error(`[Avatar] Failed to update thinking state:`, err);
         });
         requestAvatarGeneration(THINKING_PROMPT, false).catch(() => {
@@ -13070,8 +13079,7 @@ var AvatarPlugin = async ({ client }) => {
     "tool.execute.before": async (input) => {
       const toolName = input.tool;
       const sessionId = input.sessionID || input.sessionId || currentAgentName || "unknown-session";
-      const trackingName = currentAgentName || sessionId;
-      updateToolUsage(client, trackingName, sessionId, toolName).catch((err) => {
+      updateToolUsage(client, sessionId, sessionId, toolName).catch((err) => {
         console.error(`[Avatar] Failed to update tool usage:`, err);
       });
       const toolDescription = getToolDescription(toolName);
@@ -13103,8 +13111,7 @@ var AvatarPlugin = async ({ client }) => {
         isToolActive = false;
         currentRequestId = null;
         const sessionId = event.sessionID || event.sessionId || currentAgentName || "unknown-session";
-        const trackingName = currentAgentName || sessionId;
-        updateToolUsage(client, trackingName, sessionId, "idle").catch((err) => {
+        updateToolUsage(client, sessionId, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });
         await setAvatarViaHttp(undefined, undefined, true);

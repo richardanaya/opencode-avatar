@@ -20,6 +20,9 @@ const AVATAR_PORT = 47291;
 let dbFile: string | null = null;
 let db: Database | null = null;
 
+// Map session IDs to registered avatar names
+const sessionToAvatarMap: Map<string, string> = new Map();
+
 async function getDbFile(
   client: ReturnType<typeof createOpencodeClient>,
 ): Promise<string> {
@@ -65,6 +68,11 @@ async function registerAvatarName(
   name: string,
   sessionId: string,
 ): Promise<void> {
+  const normalizedName = name.toLowerCase();
+  
+  // Store mapping from session ID to registered avatar name
+  sessionToAvatarMap.set(sessionId, normalizedName);
+  
   const database = await getDatabase(client);
   const stmt = database.prepare(`
     INSERT INTO latest_tool_usage (name, session_id, tool_name, timestamp)
@@ -73,7 +81,12 @@ async function registerAvatarName(
       tool_name = excluded.tool_name,
       timestamp = excluded.timestamp
   `);
-  stmt.run(name.toLowerCase(), sessionId, "registered", Date.now());
+  stmt.run(normalizedName, normalizedName, "registered", Date.now());
+}
+
+// Get the registered avatar name for a session, or null if not registered
+function getRegisteredAvatarName(sessionId: string): string | null {
+  return sessionToAvatarMap.get(sessionId) || null;
 }
 
 async function updateToolUsage(
@@ -82,6 +95,13 @@ async function updateToolUsage(
   sessionId: string,
   toolName: string,
 ): Promise<void> {
+  const registeredName = getRegisteredAvatarName(sessionId);
+  
+  // Only track usage for registered avatar names
+  if (!registeredName) {
+    return;
+  }
+  
   const database = await getDatabase(client);
   const stmt = database.prepare(`
     INSERT INTO latest_tool_usage (name, session_id, tool_name, timestamp)
@@ -90,7 +110,7 @@ async function updateToolUsage(
       tool_name = excluded.tool_name,
       timestamp = excluded.timestamp
   `);
-  stmt.run(name.toLowerCase(), sessionId, toolName, Date.now());
+  stmt.run(registeredName, registeredName, toolName, Date.now());
 }
 
 async function getLatestToolUsage(
@@ -528,8 +548,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         
         // Track thinking state in database
         const sessionId = input.sessionID || output.sessionID || currentAgentName || "unknown-session";
-        const trackingName = currentAgentName || sessionId;
-        updateToolUsage(client, trackingName, sessionId, "thinking").catch((err) => {
+        updateToolUsage(client, sessionId, sessionId, "thinking").catch((err) => {
           console.error(`[Avatar] Failed to update thinking state:`, err);
         });
         
@@ -546,10 +565,9 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       
       // Get session ID from input context
       const sessionId = input.sessionID || input.sessionId || currentAgentName || "unknown-session";
-      const trackingName = currentAgentName || sessionId;
       
       // Track tool usage in database (fire and forget)
-      updateToolUsage(client, trackingName, sessionId, toolName).catch((err) => {
+      updateToolUsage(client, sessionId, sessionId, toolName).catch((err) => {
         console.error(`[Avatar] Failed to update tool usage:`, err);
       });
 
@@ -592,8 +610,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         
         // Track idle state in database
         const sessionId = event.sessionID || event.sessionId || currentAgentName || "unknown-session";
-        const trackingName = currentAgentName || sessionId;
-        updateToolUsage(client, trackingName, sessionId, "idle").catch((err) => {
+        updateToolUsage(client, sessionId, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });
         
