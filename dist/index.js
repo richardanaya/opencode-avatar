@@ -13067,7 +13067,7 @@ var AvatarPlugin = async ({ client }) => {
       if (userMessage?.text && !isThinking) {
         idleTriggered = false;
         isThinking = true;
-        const sessionId = input.sessionID || output.sessionID || currentAgentName || "unknown-session";
+        const sessionId = input.sessionID || currentAgentName || "unknown-session";
         updateToolUsage(client, sessionId, sessionId, "thinking").catch((err) => {
           console.error(`[Avatar] Failed to update thinking state:`, err);
         });
@@ -13078,7 +13078,7 @@ var AvatarPlugin = async ({ client }) => {
     },
     "tool.execute.before": async (input) => {
       const toolName = input.tool;
-      const sessionId = input.sessionID || input.sessionId || currentAgentName || "unknown-session";
+      const sessionId = input.sessionID || currentAgentName || "unknown-session";
       updateToolUsage(client, sessionId, sessionId, toolName).catch((err) => {
         console.error(`[Avatar] Failed to update tool usage:`, err);
       });
@@ -13110,7 +13110,7 @@ var AvatarPlugin = async ({ client }) => {
         isThinking = false;
         isToolActive = false;
         currentRequestId = null;
-        const sessionId = event.sessionID || event.sessionId || currentAgentName || "unknown-session";
+        const sessionId = event.properties?.sessionId || currentAgentName || "unknown-session";
         updateToolUsage(client, sessionId, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });

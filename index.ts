@@ -547,7 +547,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         isThinking = true;
         
         // Track thinking state in database
-        const sessionId = input.sessionID || output.sessionID || currentAgentName || "unknown-session";
+        const sessionId = input.sessionID || currentAgentName || "unknown-session";
         updateToolUsage(client, sessionId, sessionId, "thinking").catch((err) => {
           console.error(`[Avatar] Failed to update thinking state:`, err);
         });
@@ -564,7 +564,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       const toolName = input.tool;
       
       // Get session ID from input context
-      const sessionId = input.sessionID || input.sessionId || currentAgentName || "unknown-session";
+      const sessionId = input.sessionID || currentAgentName || "unknown-session";
       
       // Track tool usage in database (fire and forget)
       updateToolUsage(client, sessionId, sessionId, toolName).catch((err) => {
@@ -609,7 +609,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         currentRequestId = null;
         
         // Track idle state in database
-        const sessionId = event.sessionID || event.sessionId || currentAgentName || "unknown-session";
+        // event.properties.sessionId (lowercase 'd') per opencode docs
+        const sessionId = event.properties?.sessionId || currentAgentName || "unknown-session";
         updateToolUsage(client, sessionId, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });
