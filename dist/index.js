@@ -13049,6 +13049,11 @@ var AvatarPlugin = async ({ client }) => {
       if (userMessage?.text && !isThinking) {
         idleTriggered = false;
         isThinking = true;
+        const sessionId = output.sessionID || currentAgentName || "unknown";
+        const trackingName = currentAgentName || sessionId;
+        updateToolUsage(client, trackingName, sessionId, "thinking").catch((err) => {
+          console.error(`[Avatar] Failed to update thinking state:`, err);
+        });
         requestAvatarGeneration(THINKING_PROMPT, false).catch(() => {
           isThinking = false;
         });
@@ -13089,6 +13094,11 @@ var AvatarPlugin = async ({ client }) => {
         isThinking = false;
         isToolActive = false;
         currentRequestId = null;
+        const sessionId = event.sessionID || currentAgentName || "unknown";
+        const trackingName = currentAgentName || sessionId;
+        updateToolUsage(client, trackingName, sessionId, "idle").catch((err) => {
+          console.error(`[Avatar] Failed to update idle state:`, err);
+        });
         await setAvatarViaHttp(undefined, undefined, true);
       }
     },

@@ -510,6 +510,14 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       if (userMessage?.text && !isThinking) {
         idleTriggered = false;
         isThinking = true;
+        
+        // Track thinking state in database
+        const sessionId = (output as any).sessionID || currentAgentName || "unknown";
+        const trackingName = currentAgentName || sessionId;
+        updateToolUsage(client, trackingName, sessionId, "thinking").catch((err) => {
+          console.error(`[Avatar] Failed to update thinking state:`, err);
+        });
+        
         // Don't await - fire and forget so we don't block chat response
         requestAvatarGeneration(THINKING_PROMPT, false).catch(() => {
           isThinking = false;
@@ -566,6 +574,14 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         isThinking = false;
         isToolActive = false;
         currentRequestId = null; // Invalidate any ongoing avatar generation
+        
+        // Track idle state in database
+        const sessionId = (event as any).sessionID || currentAgentName || "unknown";
+        const trackingName = currentAgentName || sessionId;
+        updateToolUsage(client, trackingName, sessionId, "idle").catch((err) => {
+          console.error(`[Avatar] Failed to update idle state:`, err);
+        });
+        
         // Force the reset because Electron may have changed the displayed avatar
         // via /generate-avatar before we could cancel it
         await setAvatarViaHttp(undefined, undefined, true);
