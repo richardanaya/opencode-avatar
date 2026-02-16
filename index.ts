@@ -500,6 +500,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
   // Define all hooks
   const hooks = {
     "chat.message": async (input: any, output: any) => {
+      console.log(`[Avatar DEBUG] chat.message hook - input keys: ${Object.keys(input).join(', ')}, output keys: ${Object.keys(output).join(', ')}`);
+      
       const userMessage = output.parts.find(
         (part: any) => part.type === "text" && part.messageID === input.messageID
       ) as { text: string } | undefined;
@@ -512,8 +514,12 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         isThinking = true;
         
         // Track thinking state in database
-        const sessionId = (output as any).sessionID || currentAgentName || "unknown";
+        // Try to find session ID in various places
+        const sessionId = input.sessionID || output.sessionID || currentAgentName || "unknown-session";
         const trackingName = currentAgentName || sessionId;
+        
+        console.log(`[Avatar] Tracking THINKING state - sessionId: ${sessionId}, trackingName: ${trackingName}`);
+        
         updateToolUsage(client, trackingName, sessionId, "thinking").catch((err) => {
           console.error(`[Avatar] Failed to update thinking state:`, err);
         });
@@ -528,12 +534,16 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
     "tool.execute.before": async (input: any) => {
       const toolName = input.tool;
       
-      // Try to get session ID from various sources
-      const sessionId = (input as any).sessionID || currentAgentName || "unknown";
-
-      // Track tool usage in database (fire and forget)
-      // We use the current agent name if available, otherwise session ID as fallback
+      // Get session ID from input context - this should be provided by the plugin system
+      // Fall back to agent name or a generated identifier based on tool name
+      const sessionId = input.sessionID || input.sessionId || currentAgentName || `session-${Date.now()}`;
+      
+      // Use registered name if available, otherwise use session ID as the tracking name
       const trackingName = currentAgentName || sessionId;
+      
+      console.log(`[Avatar] Tool executing: ${toolName}, sessionId: ${sessionId}, trackingName: ${trackingName}`);
+      
+      // Track tool usage in database (fire and forget)
       updateToolUsage(client, trackingName, sessionId, toolName).catch((err) => {
         console.error(`[Avatar] Failed to update tool usage:`, err);
       });
@@ -557,6 +567,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
     },
 
     event: async ({ event }: { event: any }) => {
+      console.log(`[Avatar DEBUG] event hook - event.type: ${event.type}, event keys: ${Object.keys(event).join(', ')}`);
+      
       // Detect agent from user messages
       if (event.type === "message.updated") {
         const message = (event as any).properties?.info;
@@ -576,8 +588,11 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         currentRequestId = null; // Invalidate any ongoing avatar generation
         
         // Track idle state in database
-        const sessionId = (event as any).sessionID || currentAgentName || "unknown";
+        const sessionId = event.sessionID || event.sessionId || currentAgentName || "unknown-session";
         const trackingName = currentAgentName || sessionId;
+        
+        console.log(`[Avatar] Tracking IDLE state - sessionId: ${sessionId}, trackingName: ${trackingName}`);
+        
         updateToolUsage(client, trackingName, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });
