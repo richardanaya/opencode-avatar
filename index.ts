@@ -4,7 +4,6 @@ import * as path from "path";
 import * as http from "http";
 import * as fs from "fs";
 import * as os from "os";
-import { Database } from "bun:sqlite";
 import type { createOpencodeClient } from "@opencode-ai/sdk";
 
 const PLUGIN_DIR = __dirname; // Where the plugin code lives
@@ -12,122 +11,6 @@ const AVATAR_DIR = path.join(os.homedir(), '.config', 'opencode'); // Where avat
 const DEFAULT_AVATAR = "avatar.png";
 const THINKING_PROMPT = "thinking hard";
 const AVATAR_PORT = 47291;
-
-// =============================================================================
-// Database
-// =============================================================================
-
-let dbFile: string | null = null;
-let db: Database | null = null;
-
-// Map session IDs to registered avatar names
-const sessionToAvatarMap: Map<string, string> = new Map();
-
-async function getDbFile(
-  client: ReturnType<typeof createOpencodeClient>,
-): Promise<string> {
-  if (!dbFile) {
-    const result = await client.path.get();
-    dbFile = path.join(result.data!.config, "avatar.db");
-  }
-  return dbFile;
-}
-
-async function getDatabase(
-  client: ReturnType<typeof createOpencodeClient>,
-): Promise<Database> {
-  if (!db) {
-    const file = await getDbFile(client);
-    db = new Database(file);
-
-    // Enable WAL mode for better concurrency
-    db.run("PRAGMA journal_mode = WAL");
-
-    // Create table to track latest tool usage per name/session
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS latest_tool_usage (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        tool_name TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        UNIQUE(name, session_id)
-      )
-    `);
-
-    // Create index for fast lookups
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_tool_usage_name_session ON latest_tool_usage(name, session_id)
-    `);
-  }
-  return db;
-}
-
-async function registerAvatarName(
-  client: ReturnType<typeof createOpencodeClient>,
-  name: string,
-  sessionId: string,
-): Promise<void> {
-  const normalizedName = name.toLowerCase();
-  
-  // Store mapping from session ID to registered avatar name
-  sessionToAvatarMap.set(sessionId, normalizedName);
-  
-  const database = await getDatabase(client);
-  const stmt = database.prepare(`
-    INSERT INTO latest_tool_usage (name, session_id, tool_name, timestamp)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(name, session_id) DO UPDATE SET
-      tool_name = excluded.tool_name,
-      timestamp = excluded.timestamp
-  `);
-  stmt.run(normalizedName, normalizedName, "registered", Date.now());
-}
-
-// Get the registered avatar name for a session, or null if not registered
-function getRegisteredAvatarName(sessionId: string): string | null {
-  return sessionToAvatarMap.get(sessionId) || null;
-}
-
-async function updateToolUsage(
-  client: ReturnType<typeof createOpencodeClient>,
-  name: string,
-  sessionId: string,
-  toolName: string,
-): Promise<void> {
-  const registeredName = getRegisteredAvatarName(sessionId);
-  
-  // Only track usage for registered avatar names
-  if (!registeredName) {
-    return;
-  }
-  
-  const database = await getDatabase(client);
-  const stmt = database.prepare(`
-    INSERT INTO latest_tool_usage (name, session_id, tool_name, timestamp)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(name, session_id) DO UPDATE SET
-      tool_name = excluded.tool_name,
-      timestamp = excluded.timestamp
-  `);
-  stmt.run(registeredName, registeredName, toolName, Date.now());
-}
-
-async function getLatestToolUsage(
-  client: ReturnType<typeof createOpencodeClient>,
-  name: string,
-): Promise<{ name: string; session_id: string; tool_name: string; timestamp: number } | null> {
-  const database = await getDatabase(client);
-  const stmt = database.prepare(`
-    SELECT name, session_id, tool_name, timestamp
-    FROM latest_tool_usage
-    WHERE name = ?
-    ORDER BY timestamp DESC
-    LIMIT 1
-  `);
-  const result = stmt.get(name.toLowerCase()) as { name: string; session_id: string; tool_name: string; timestamp: number } | undefined;
-  return result || null;
-}
 
 // Normalize agent name: lowercase and spaces to underscores
 function normalizeAgentName(name: string): string {
@@ -492,47 +375,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
     showErrorToast(`Failed to start avatar: ${message}`);
   }
 
-  // Create the register_avatar_name tool
-  const registerAvatarNameTool = tool({
-    description:
-      "Register a name for this avatar session. This associates a name with the current session ID for tracking purposes.",
-    args: {
-      name: z
-        .string()
-        .describe(
-          "Name to register for this avatar session. This will be associated with the current session ID.",
-        ),
-    },
-    async execute(args, toolCtx) {
-      const name = args.name.toLowerCase();
-      const sessionId = toolCtx.sessionID;
-
-      try {
-        await registerAvatarName(client, name, sessionId);
-        return `Avatar name "${args.name}" registered for session ${sessionId}`;
-      } catch (error) {
-        console.error(`[Avatar] Failed to register name:`, error);
-        throw error;
-      }
-    },
-  });
-
   return {
-    // Register the tool
-    tool: {
-      register_avatar_name: registerAvatarNameTool,
-    },
-
-    // Hook: Add tools to primary_tools config
-    config: async (input: {
-      experimental?: { primary_tools?: string[]; [key: string]: unknown };
-      [key: string]: unknown;
-    }) => {
-      input.experimental ??= {};
-      input.experimental.primary_tools ??= [];
-      input.experimental.primary_tools.push("register_avatar_name");
-    },
-
     // Hook: Track thinking state when processing messages
     "chat.message": async (input: any, output: any) => {
       const userMessage = output.parts.find(
@@ -545,12 +388,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       if (userMessage?.text && !isThinking) {
         idleTriggered = false;
         isThinking = true;
-        
-        // Track thinking state in database
-        const sessionId = input.sessionID || currentAgentName || "unknown-session";
-        updateToolUsage(client, sessionId, sessionId, "thinking").catch((err) => {
-          console.error(`[Avatar] Failed to update thinking state:`, err);
-        });
         
         // Don't await - fire and forget so we don't block chat response
         requestAvatarGeneration(THINKING_PROMPT, false).catch(() => {
@@ -566,11 +403,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       // Get session ID from input context
       const sessionId = input.sessionID || currentAgentName || "unknown-session";
       
-      // Track tool usage in database (fire and forget)
-      updateToolUsage(client, sessionId, sessionId, toolName).catch((err) => {
-        console.error(`[Avatar] Failed to update tool usage:`, err);
-      });
-
       // Try to get tool description for better prompt
       const toolDescription = getToolDescription(toolName);
       const prompt = getToolPrompt(toolName, toolDescription);
@@ -608,19 +440,12 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         isToolActive = false;
         currentRequestId = null;
         
-        // Track idle state in database
-        const sessionId = event.properties?.sessionID || currentAgentName || "unknown-session";
-        updateToolUsage(client, sessionId, sessionId, "idle").catch((err) => {
-          console.error(`[Avatar] Failed to update idle state:`, err);
-        });
-        
         await setAvatarViaHttp(undefined, undefined, true);
       }
     },
 
     // Hook: Clean up when session ends
     "session.end": async (_input: { sessionID: string }) => {
-      // Database cleanup if needed
     },
   };
 };
