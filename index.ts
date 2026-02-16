@@ -497,11 +497,24 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
     },
   });
 
-  // Define all hooks
-  const hooks = {
+  return {
+    // Register the tool
+    tool: {
+      register_avatar_name: registerAvatarNameTool,
+    },
+
+    // Hook: Add tools to primary_tools config
+    config: async (input: {
+      experimental?: { primary_tools?: string[]; [key: string]: unknown };
+      [key: string]: unknown;
+    }) => {
+      input.experimental ??= {};
+      input.experimental.primary_tools ??= [];
+      input.experimental.primary_tools.push("register_avatar_name");
+    },
+
+    // Hook: Track thinking state when processing messages
     "chat.message": async (input: any, output: any) => {
-      console.log(`[Avatar DEBUG] chat.message hook - input keys: ${Object.keys(input).join(', ')}, output keys: ${Object.keys(output).join(', ')}`);
-      
       const userMessage = output.parts.find(
         (part: any) => part.type === "text" && part.messageID === input.messageID
       ) as { text: string } | undefined;
@@ -514,12 +527,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         isThinking = true;
         
         // Track thinking state in database
-        // Try to find session ID in various places
         const sessionId = input.sessionID || output.sessionID || currentAgentName || "unknown-session";
         const trackingName = currentAgentName || sessionId;
-        
-        console.log(`[Avatar] Tracking THINKING state - sessionId: ${sessionId}, trackingName: ${trackingName}`);
-        
         updateToolUsage(client, trackingName, sessionId, "thinking").catch((err) => {
           console.error(`[Avatar] Failed to update thinking state:`, err);
         });
@@ -531,17 +540,13 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       }
     },
 
+    // Hook: Track tool usage before execution
     "tool.execute.before": async (input: any) => {
       const toolName = input.tool;
       
-      // Get session ID from input context - this should be provided by the plugin system
-      // Fall back to agent name or a generated identifier based on tool name
-      const sessionId = input.sessionID || input.sessionId || currentAgentName || `session-${Date.now()}`;
-      
-      // Use registered name if available, otherwise use session ID as the tracking name
+      // Get session ID from input context
+      const sessionId = input.sessionID || input.sessionId || currentAgentName || "unknown-session";
       const trackingName = currentAgentName || sessionId;
-      
-      console.log(`[Avatar] Tool executing: ${toolName}, sessionId: ${sessionId}, trackingName: ${trackingName}`);
       
       // Track tool usage in database (fire and forget)
       updateToolUsage(client, trackingName, sessionId, toolName).catch((err) => {
@@ -550,7 +555,6 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
 
       // Try to get tool description for better prompt
       const toolDescription = getToolDescription(toolName);
-
       const prompt = getToolPrompt(toolName, toolDescription);
 
       idleTriggered = false;
@@ -566,9 +570,8 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
       });
     },
 
+    // Hook: Handle events (idle detection, agent detection)
     event: async ({ event }: { event: any }) => {
-      console.log(`[Avatar DEBUG] event hook - event.type: ${event.type}, event keys: ${Object.keys(event).join(', ')}`);
-      
       // Detect agent from user messages
       if (event.type === "message.updated") {
         const message = (event as any).properties?.info;
@@ -585,46 +588,22 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         idleTriggered = true;
         isThinking = false;
         isToolActive = false;
-        currentRequestId = null; // Invalidate any ongoing avatar generation
+        currentRequestId = null;
         
         // Track idle state in database
         const sessionId = event.sessionID || event.sessionId || currentAgentName || "unknown-session";
         const trackingName = currentAgentName || sessionId;
-        
-        console.log(`[Avatar] Tracking IDLE state - sessionId: ${sessionId}, trackingName: ${trackingName}`);
-        
         updateToolUsage(client, trackingName, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });
         
-        // Force the reset because Electron may have changed the displayed avatar
-        // via /generate-avatar before we could cancel it
         await setAvatarViaHttp(undefined, undefined, true);
       }
     },
 
-    // Hook: Clean up database connection when session ends
+    // Hook: Clean up when session ends
     "session.end": async (_input: { sessionID: string }) => {
       // Database cleanup if needed
     },
-  };
-
-  // Return plugin structure with tools, config, and hooks
-  return {
-    tool: {
-      register_avatar_name: registerAvatarNameTool,
-    },
-
-    // Hook: Add tools to primary_tools config
-    config: async (input: {
-      experimental?: { primary_tools?: string[]; [key: string]: unknown };
-      [key: string]: unknown;
-    }) => {
-      input.experimental ??= {};
-      input.experimental.primary_tools ??= [];
-      input.experimental.primary_tools.push("register_avatar_name");
-    },
-
-    hooks,
   };
 };

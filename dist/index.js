@@ -13042,9 +13042,16 @@ var AvatarPlugin = async ({ client }) => {
       }
     }
   });
-  const hooks = {
+  return {
+    tool: {
+      register_avatar_name: registerAvatarNameTool
+    },
+    config: async (input) => {
+      input.experimental ??= {};
+      input.experimental.primary_tools ??= [];
+      input.experimental.primary_tools.push("register_avatar_name");
+    },
     "chat.message": async (input, output) => {
-      console.log(`[Avatar DEBUG] chat.message hook - input keys: ${Object.keys(input).join(", ")}, output keys: ${Object.keys(output).join(", ")}`);
       const userMessage = output.parts.find((part) => part.type === "text" && part.messageID === input.messageID);
       if (userMessage?.text) {}
       if (userMessage?.text && !isThinking) {
@@ -13052,7 +13059,6 @@ var AvatarPlugin = async ({ client }) => {
         isThinking = true;
         const sessionId = input.sessionID || output.sessionID || currentAgentName || "unknown-session";
         const trackingName = currentAgentName || sessionId;
-        console.log(`[Avatar] Tracking THINKING state - sessionId: ${sessionId}, trackingName: ${trackingName}`);
         updateToolUsage(client, trackingName, sessionId, "thinking").catch((err) => {
           console.error(`[Avatar] Failed to update thinking state:`, err);
         });
@@ -13063,9 +13069,8 @@ var AvatarPlugin = async ({ client }) => {
     },
     "tool.execute.before": async (input) => {
       const toolName = input.tool;
-      const sessionId = input.sessionID || input.sessionId || currentAgentName || `session-${Date.now()}`;
+      const sessionId = input.sessionID || input.sessionId || currentAgentName || "unknown-session";
       const trackingName = currentAgentName || sessionId;
-      console.log(`[Avatar] Tool executing: ${toolName}, sessionId: ${sessionId}, trackingName: ${trackingName}`);
       updateToolUsage(client, trackingName, sessionId, toolName).catch((err) => {
         console.error(`[Avatar] Failed to update tool usage:`, err);
       });
@@ -13082,7 +13087,6 @@ var AvatarPlugin = async ({ client }) => {
       });
     },
     event: async ({ event }) => {
-      console.log(`[Avatar DEBUG] event hook - event.type: ${event.type}, event keys: ${Object.keys(event).join(", ")}`);
       if (event.type === "message.updated") {
         const message = event.properties?.info;
         if (message?.role === "user" && message?.agent) {
@@ -13100,7 +13104,6 @@ var AvatarPlugin = async ({ client }) => {
         currentRequestId = null;
         const sessionId = event.sessionID || event.sessionId || currentAgentName || "unknown-session";
         const trackingName = currentAgentName || sessionId;
-        console.log(`[Avatar] Tracking IDLE state - sessionId: ${sessionId}, trackingName: ${trackingName}`);
         updateToolUsage(client, trackingName, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });
@@ -13108,17 +13111,6 @@ var AvatarPlugin = async ({ client }) => {
       }
     },
     "session.end": async (_input) => {}
-  };
-  return {
-    tool: {
-      register_avatar_name: registerAvatarNameTool
-    },
-    config: async (input) => {
-      input.experimental ??= {};
-      input.experimental.primary_tools ??= [];
-      input.experimental.primary_tools.push("register_avatar_name");
-    },
-    hooks
   };
 };
 export {
