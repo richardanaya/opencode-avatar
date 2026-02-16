@@ -609,8 +609,7 @@ export const AvatarPlugin: Plugin = async ({ client }) => {
         currentRequestId = null;
         
         // Track idle state in database
-        // event.properties.sessionId (lowercase 'd') per opencode docs
-        const sessionId = event.properties?.sessionId || currentAgentName || "unknown-session";
+        const sessionId = event.properties?.sessionID || currentAgentName || "unknown-session";
         updateToolUsage(client, sessionId, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });

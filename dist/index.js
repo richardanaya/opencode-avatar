@@ -13110,7 +13110,7 @@ var AvatarPlugin = async ({ client }) => {
         isThinking = false;
         isToolActive = false;
         currentRequestId = null;
-        const sessionId = event.properties?.sessionId || currentAgentName || "unknown-session";
+        const sessionId = event.properties?.sessionID || currentAgentName || "unknown-session";
         updateToolUsage(client, sessionId, sessionId, "idle").catch((err) => {
           console.error(`[Avatar] Failed to update idle state:`, err);
         });
